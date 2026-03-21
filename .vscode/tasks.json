@@ -2,133 +2,94 @@
   "version": "2.0.0",
   "inputs": [
     {
-      "id": "runDate",
+      "id": "runDateRequired",
       "type": "promptString",
-      "description": "Run date (YYYY-MM-DD). Press Enter for TODAY.",
+      "description": "Backfill date (YYYY-MM-DD) — REQUIRED for backfill tasks",
       "default": ""
     },
     {
       "id": "gameId",
       "type": "promptString",
-      "description": "NCAA gameID (example: 6502232)"
+      "description": "NCAA gameID (example: 6502232)",
+      "default": ""
     }
   ],
   "tasks": [
     {
-      "label": "NCAAM: Prep slate + selected_games + last4 (date: blank=today)",
-      "type": "shell",
-      "command": "powershell.exe",
-      "args": [
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-Command",
-        "$ws='${workspaceFolder}'; $d='${input:runDate}'; if ([string]::IsNullOrWhiteSpace($d)) { $d=(Get-Date).ToString('yyyy-MM-dd') }; & \"$ws\\.venv\\Scripts\\python.exe\" \"$ws\\Scripts\\prepare_full_slate_v1.py\" --date $d"
-      ],
-      "problemMatcher": [],
-      "options": {
-        "cwd": "${workspaceFolder}"
-      }
-    },
-    {
-      "label": "NCAAM: Download baseline PBP (workers=8, max-rps=4) (date: blank=today)",
-      "type": "shell",
-      "command": "powershell.exe",
-      "args": [
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-Command",
-        "$ws='${workspaceFolder}'; $d='${input:runDate}'; if ([string]::IsNullOrWhiteSpace($d)) { $d=(Get-Date).ToString('yyyy-MM-dd') }; $baseline=\"$ws\\data\\processed\\baselines\\last4_$d.json\"; & \"$ws\\.venv\\Scripts\\python.exe\" \"$ws\\Scripts\\step3_download_pbp_baselines.py\" --baseline $baseline --workers 8 --max-rps 4"
-      ],
-      "problemMatcher": [],
-      "options": {
-        "cwd": "${workspaceFolder}"
-      }
-    },
-    {
-      "label": "NCAAM: List slate (gameID | away @ home) (date: blank=today)",
-      "type": "shell",
-      "command": "powershell.exe",
-      "args": [
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-Command",
-        "$ws='${workspaceFolder}'; $d='${input:runDate}'; if ([string]::IsNullOrWhiteSpace($d)) { $d=(Get-Date).ToString('yyyy-MM-dd') }; $csv=\"$ws\\data\\processed\\slates\\slate_d1_$d.csv\"; Import-Csv $csv | Select-Object gameID, away_short, home_short | ForEach-Object { \"{0}  |  {1} @ {2}\" -f $_.gameID, $_.away_short, $_.home_short }"
-      ],
-      "problemMatcher": [],
-      "options": {
-        "cwd": "${workspaceFolder}"
-      }
-    },
-    {
-      "label": "NCAAM: Pregame (prep + download baseline PBP + list slate) (date: blank=today)",
+      "label": "NCAAM: TODAY Pregame (prep + download baseline PBP + list slate)",
       "dependsOrder": "sequence",
       "dependsOn": [
-        "NCAAM: Prep slate + selected_games + last4 (date: blank=today)",
-        "NCAAM: Download baseline PBP (workers=8, max-rps=4) (date: blank=today)",
-        "NCAAM: List slate (gameID | away @ home) (date: blank=today)"
+        "NCAAM: TODAY Prep slate + selected_games + last4",
+        "NCAAM: TODAY Download baseline PBP (workers=8,max-rps=4)",
+        "NCAAM: TODAY List slate (gameID | away @ home)"
       ],
       "problemMatcher": []
     },
     {
-      "label": "NCAAM: Pull halftime PBP (by gameID)",
+      "label": "NCAAM: TODAY Prep slate + selected_games + last4",
       "type": "shell",
       "command": "powershell.exe",
       "args": [
         "-NoProfile",
         "-ExecutionPolicy",
         "Bypass",
-        "-Command",
-        "$ws='${workspaceFolder}'; $gid='${input:gameId}'; & \"$ws\\.venv\\Scripts\\python.exe\" \"$ws\\Scripts\\step4_pull_halftime_pbp_v2.py\" $gid"
+        "-File",
+        "${workspaceFolder}\\Scripts\\vscode_task_runner.ps1",
+        "-Action",
+        "prep"
       ],
       "problemMatcher": [],
-      "options": {
-        "cwd": "${workspaceFolder}"
-      }
+      "options": { "cwd": "${workspaceFolder}" }
     },
     {
-      "label": "NCAAM: Generate halftime feature report (by gameID + date: blank=today)",
+      "label": "NCAAM: TODAY Download baseline PBP (workers=8,max-rps=4)",
       "type": "shell",
       "command": "powershell.exe",
       "args": [
         "-NoProfile",
         "-ExecutionPolicy",
         "Bypass",
-        "-Command",
-        "$ws='${workspaceFolder}'; $d='${input:runDate}'; if ([string]::IsNullOrWhiteSpace($d)) { $d=(Get-Date).ToString('yyyy-MM-dd') }; $gid='${input:gameId}'; $baseline=\"$ws\\data\\processed\\baselines\\last4_$d.json\"; $selected=\"$ws\\data\\processed\\selected_games\\selected_games_$d.json\"; & \"$ws\\.venv\\Scripts\\python.exe\" \"$ws\\Scripts\\step4b_feature_report_from_file_v5_test.py\" $gid --baseline-manifest $baseline --selected-games $selected"
+        "-File",
+        "${workspaceFolder}\\Scripts\\vscode_task_runner.ps1",
+        "-Action",
+        "download_pbp"
       ],
       "problemMatcher": [],
-      "options": {
-        "cwd": "${workspaceFolder}"
-      }
+      "options": { "cwd": "${workspaceFolder}" }
     },
     {
-      "label": "NCAAM: Log prediction to workbook (by gameID) [WRITES EXCEL]",
+      "label": "NCAAM: TODAY List slate (gameID | away @ home)",
       "type": "shell",
       "command": "powershell.exe",
       "args": [
         "-NoProfile",
         "-ExecutionPolicy",
         "Bypass",
-        "-Command",
-        "$ws='${workspaceFolder}'; $gid='${input:gameId}'; & \"$ws\\.venv\\Scripts\\python.exe\" \"$ws\\Scripts\\log_prediction_to_results_v1.py\" $gid"
+        "-File",
+        "${workspaceFolder}\\Scripts\\vscode_task_runner.ps1",
+        "-Action",
+        "list_slate"
       ],
       "problemMatcher": [],
-      "options": {
-        "cwd": "${workspaceFolder}"
-      }
+      "options": { "cwd": "${workspaceFolder}" }
     },
     {
-      "label": "NCAAM: Halftime run (pull + report + log) [WRITES EXCEL]",
-      "dependsOrder": "sequence",
-      "dependsOn": [
-        "NCAAM: Pull halftime PBP (by gameID)",
-        "NCAAM: Generate halftime feature report (by gameID + date: blank=today)",
-        "NCAAM: Log prediction to workbook (by gameID) [WRITES EXCEL]"
+      "label": "NCAAM: TODAY Halftime run (pull + report + log) [WRITES EXCEL]",
+      "type": "shell",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\Scripts\\vscode_task_runner.ps1",
+        "-Action",
+        "halftime_run",
+        "-GameId",
+        "${input:gameId}"
       ],
-      "problemMatcher": []
+      "problemMatcher": [],
+      "options": { "cwd": "${workspaceFolder}" }
     },
     {
       "label": "NCAAM: Postgame update (ONLY missing results) [WRITES EXCEL]",
@@ -138,29 +99,99 @@
         "-NoProfile",
         "-ExecutionPolicy",
         "Bypass",
-        "-Command",
-        "$ws='${workspaceFolder}'; & \"$ws\\.venv\\Scripts\\python.exe\" \"$ws\\Scripts\\update_new_results_only_v1.py\""
+        "-File",
+        "${workspaceFolder}\\Scripts\\vscode_task_runner.ps1",
+        "-Action",
+        "postgame_missing"
       ],
       "problemMatcher": [],
-      "options": {
-        "cwd": "${workspaceFolder}"
-      }
+      "options": { "cwd": "${workspaceFolder}" }
+    },
+
+    {
+      "label": "NCAAM: BACKFILL Pregame (prep + download baseline PBP + list slate)",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "NCAAM: BACKFILL Prep slate + selected_games + last4 (requires date)",
+        "NCAAM: BACKFILL Download baseline PBP (requires date)",
+        "NCAAM: BACKFILL List slate (requires date)"
+      ],
+      "problemMatcher": []
     },
     {
-      "label": "NCAAM: Postgame update (single gameID) [WRITES EXCEL]",
+      "label": "NCAAM: BACKFILL Prep slate + selected_games + last4 (requires date)",
       "type": "shell",
       "command": "powershell.exe",
       "args": [
         "-NoProfile",
         "-ExecutionPolicy",
         "Bypass",
-        "-Command",
-        "$ws='${workspaceFolder}'; $gid='${input:gameId}'; & \"$ws\\.venv\\Scripts\\python.exe\" \"$ws\\Scripts\\update_results_postgame_v1.py\" $gid"
+        "-File",
+        "${workspaceFolder}\\Scripts\\vscode_task_runner.ps1",
+        "-Action",
+        "prep",
+        "-Date",
+        "${input:runDateRequired}"
       ],
       "problemMatcher": [],
-      "options": {
-        "cwd": "${workspaceFolder}"
-      }
+      "options": { "cwd": "${workspaceFolder}" }
+    },
+    {
+      "label": "NCAAM: BACKFILL Download baseline PBP (requires date)",
+      "type": "shell",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\Scripts\\vscode_task_runner.ps1",
+        "-Action",
+        "download_pbp",
+        "-Date",
+        "${input:runDateRequired}"
+      ],
+      "problemMatcher": [],
+      "options": { "cwd": "${workspaceFolder}" }
+    },
+    {
+      "label": "NCAAM: BACKFILL List slate (requires date)",
+      "type": "shell",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\Scripts\\vscode_task_runner.ps1",
+        "-Action",
+        "list_slate",
+        "-Date",
+        "${input:runDateRequired}"
+      ],
+      "problemMatcher": [],
+      "options": { "cwd": "${workspaceFolder}" }
+    },
+    {
+      "label": "NCAAM: BACKFILL Halftime run (pull + report + log) [WRITES EXCEL] (requires date)",
+      "type": "shell",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\Scripts\\vscode_task_runner.ps1",
+        "-Action",
+        "halftime_run",
+        "-Date",
+        "${input:runDateRequired}",
+        "-GameId",
+        "${input:gameId}"
+      ],
+      "problemMatcher": [],
+      "options": { "cwd": "${workspaceFolder}" }
     }
   ]
 }
+``
