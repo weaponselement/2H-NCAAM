@@ -4,12 +4,11 @@ import sys
 from datetime import datetime
 import json
 from pathlib import Path
+from paths import PROJECT_ROOT
 
-BASE_DIR = Path("C:/NCAA Model")
-
+BASE_DIR = PROJECT_ROOT
 SLATE_SCRIPT = BASE_DIR / "Scripts/slate_d1_game_ids.py"
 LAST4_SCRIPT = BASE_DIR / "Scripts/step2b_last4_from_scoreboard_v2.py"
-
 SLATE_DIR = BASE_DIR / "data/processed/slates"
 SELECTED_DIR = BASE_DIR / "data/processed/selected_games"
 

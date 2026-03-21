@@ -2,9 +2,10 @@ import glob
 import json
 import os
 from openpyxl import load_workbook
+from paths import DATA_DIR, NCAAM_RESULTS_XLSX
 
-RESULTS_XLSX = r"C:\NCAA Model\logs\NCAAM Results.xlsx"
-REPORTS_DIR = r"C:\NCAA Model\data\processed\reports"
+RESULTS_XLSX = str(NCAAM_RESULTS_XLSX)
+REPORTS_DIR = os.path.join(str(DATA_DIR), "processed", "reports")
 
 
 def load_json(path):

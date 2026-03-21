@@ -4,16 +4,14 @@ import random
 import sys
 import time
 from datetime import datetime
-
 import requests
+from paths import DATA_DIR
 
 API_BASE = "https://ncaa-api.henrygd.me"
 HEADERS = {"User-Agent": "Mozilla/5.0"}
-
-DATA_ROOT = r"C:\NCAA Model\data"
+DATA_ROOT = str(DATA_DIR)
 OUT_ROOT = os.path.join(DATA_ROOT, "raw", "pbp_live")
 LOG_DIR = os.path.join(DATA_ROOT, "logs")
-
 os.makedirs(OUT_ROOT, exist_ok=True)
 os.makedirs(LOG_DIR, exist_ok=True)
 

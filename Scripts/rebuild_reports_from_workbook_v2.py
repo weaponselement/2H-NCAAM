@@ -2,13 +2,12 @@ import os
 import sys
 import subprocess
 from openpyxl import load_workbook
+from paths import DATA_DIR, SCRIPTS_DIR, NCAAM_RESULTS_XLSX
 
-WORKBOOK = r"C:\NCAA Model\logs\NCAAM Results.xlsx"
+WORKBOOK = str(NCAAM_RESULTS_XLSX)
 SHEET_NAME = "Game_Log"
-
-DATA_ROOT = r"C:\NCAA Model\data"
-SCRIPT_TO_RUN = r"C:\NCAA Model\Scripts\step4b_feature_report_from_file_v5_test.py"
-
+DATA_ROOT = str(DATA_DIR)
+SCRIPT_TO_RUN = str(SCRIPTS_DIR / "step4b_feature_report_from_file_v5_test.py")
 SELECTED_DIR = os.path.join(DATA_ROOT, "processed", "selected_games")
 BASELINES_DIR = os.path.join(DATA_ROOT, "processed", "baselines")
 

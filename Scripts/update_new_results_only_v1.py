@@ -2,10 +2,10 @@ from pathlib import Path
 from openpyxl import load_workbook
 import subprocess
 import sys
+from paths import NCAAM_RESULTS_XLSX
 
-WORKBOOK = r"C:\NCAA Model\logs\NCAAM Results.xlsx"
+WORKBOOK = str(NCAAM_RESULTS_XLSX)
 SHEET_NAME = "Game_Log"
-
 GAME_ID_COL = 2
 ACTUAL_WINNER_COL = 12
 

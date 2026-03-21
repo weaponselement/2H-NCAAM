@@ -3,12 +3,12 @@ import json
 import os
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
-
 import requests
+from paths import DATA_DIR
 
 API_BASE = "https://ncaa-api.henrygd.me"
 HEADERS = {"User-Agent": "Mozilla/5.0"}
-DEFAULT_DATA_ROOT = r"C:\NCAA Model\data"
+DEFAULT_DATA_ROOT = str(DATA_DIR)
 
 
 def load_json(path: str):
