@@ -7,7 +7,8 @@ from collections import Counter
 from datetime import datetime
 from statistics import mean
 
-DEFAULT_DATA_ROOT = r"C:\NCAA Model\data"
+DEFAULT_DATA_ROOT = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
+
 SEGMENTS = [
     (20 * 60, 16 * 60, "20:00-16:00"),
     (16 * 60, 12 * 60, "15:59-12:00"),
