@@ -1,7 +1,8 @@
 import requests
 from openpyxl import load_workbook
+from paths import NCAAM_RESULTS_XLSX
 
-RESULTS_XLSX = r"C:\NCAA Model\logs\NCAAM Results.xlsx"
+RESULTS_XLSX = str(NCAAM_RESULTS_XLSX)
 API_BASE = "https://ncaa-api.henrygd.me"
 HEADERS = {"User-Agent": "Mozilla/5.0"}
 
