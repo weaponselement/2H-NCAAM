@@ -3,15 +3,13 @@ import os
 import re
 import time
 from typing import Dict, List, Optional, Tuple
-
 import requests
+from paths import DATA_DIR
 
 API_BASE = "https://ncaa-api.henrygd.me"
-
-DATA_ROOT = r"C:\NCAA Model\data"
+DATA_ROOT = str(DATA_DIR)
 SCHEDULE_CACHE_DIR = os.path.join(DATA_ROOT, "cache", "team_schedules")
 GAME_CACHE_DIR = os.path.join(DATA_ROOT, "cache", "games")
-
 HEADERS = {"User-Agent": "Mozilla/5.0"}
 
 def ensure_dir(p: str):

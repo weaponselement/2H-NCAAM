@@ -2,8 +2,9 @@ import os
 import json
 import glob
 import re
+from paths import DATA_DIR
 
-DATA_ROOT = r"C:\NCAA Model\data"
+DATA_ROOT = str(DATA_DIR)
 SLATES_DIR = os.path.join(DATA_ROOT, "processed", "slates")
 SELECTED_DIR = os.path.join(DATA_ROOT, "processed", "selected_games")
 

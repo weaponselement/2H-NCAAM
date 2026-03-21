@@ -2,14 +2,13 @@ import json
 import os
 from datetime import datetime
 from zoneinfo import ZoneInfo
-
 import requests
+from paths import DATA_DIR
 
 API_BASE = "https://ncaa-api.henrygd.me"
-DATA_ROOT = r"C:\NCAA Model\data"
+DATA_ROOT = str(DATA_DIR)
 OUT_DIR = os.path.join(DATA_ROOT, "processed", "selected_games")
 os.makedirs(OUT_DIR, exist_ok=True)
-
 HEADERS = {"User-Agent": "Mozilla/5.0"}
 
 def today_ymd_central():

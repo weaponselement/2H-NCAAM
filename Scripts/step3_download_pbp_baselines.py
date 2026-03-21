@@ -4,15 +4,14 @@ import os
 import time
 from datetime import datetime
 import requests
+from paths import DATA_DIR
 
 API_BASE = "https://ncaa-api.henrygd.me"
 HEADERS = {"User-Agent": "Mozilla/5.0"}
-
-DATA_ROOT = r"C:\NCAA Model\data"
+DATA_ROOT = str(DATA_DIR)
 BASELINE_FILE = os.path.join(DATA_ROOT, "processed", "baselines", "last4_2026-03-07.json")
 PBP_ROOT = os.path.join(DATA_ROOT, "raw", "pbp")
 LOG_DIR = os.path.join(DATA_ROOT, "logs")
-
 os.makedirs(PBP_ROOT, exist_ok=True)
 os.makedirs(LOG_DIR, exist_ok=True)
 

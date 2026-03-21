@@ -4,11 +4,11 @@ import glob
 import json
 from collections import defaultdict
 from openpyxl import load_workbook
+from paths import DATA_DIR, NCAAM_RESULTS_XLSX
 
-DATA_ROOT = r"C:\NCAA Model\data"
-WORKBOOK = r"C:\NCAA Model\logs\NCAAM Results.xlsx"
+DATA_ROOT = str(DATA_DIR)
+WORKBOOK = str(NCAAM_RESULTS_XLSX)
 SHEET_NAME = "Game_Log"
-
 SLATES_DIR = os.path.join(DATA_ROOT, "processed", "slates")
 SELECTED_DIR = os.path.join(DATA_ROOT, "processed", "selected_games")
 BASELINES_DIR = os.path.join(DATA_ROOT, "processed", "baselines")

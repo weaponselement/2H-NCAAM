@@ -2,9 +2,10 @@ import glob
 import json
 import os
 from openpyxl import load_workbook
+from paths import DATA_DIR, NCAAM_RESULTS_XLSX
 
-RESULTS_XLSX = r"C:\NCAA Model\logs\NCAAM Results.xlsx"
-DATA_ROOT = r"C:\NCAA Model\data"
+RESULTS_XLSX = str(NCAAM_RESULTS_XLSX)
+DATA_ROOT = str(DATA_DIR)
 SHEET_NAME = "Game_Log"
 
 

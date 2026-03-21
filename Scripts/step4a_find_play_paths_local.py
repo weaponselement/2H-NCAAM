@@ -1,9 +1,9 @@
 import json
 import os
 from collections import Counter
+from paths import DATA_DIR
 
-RAW_PATH = r"C:\NCAA Model\data\processed\schema_inspection\pbp_raw_6503596.json"
-
+RAW_PATH = os.path.join(str(DATA_DIR), "processed", "schema_inspection", "pbp_raw_6503596.json")
 # Keys that commonly appear in play/event items
 PLAY_SMELL_KEYS = {
     "clock", "time", "description", "text", "period", "half",

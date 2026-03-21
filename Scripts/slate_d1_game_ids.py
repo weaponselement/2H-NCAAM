@@ -4,16 +4,14 @@ import csv
 import argparse
 from datetime import datetime
 from zoneinfo import ZoneInfo
-
 import requests
+from paths import DATA_DIR
 
 API_BASE = "https://ncaa-api.henrygd.me"
 HEADERS = {"User-Agent": "Mozilla/5.0"}
-
-DATA_ROOT = r"C:\NCAA Model\data"
+DATA_ROOT = str(DATA_DIR)
 OUT_DIR = os.path.join(DATA_ROOT, "processed", "slates")
 CACHE_DIR = os.path.join(DATA_ROOT, "cache", "scoreboard_daily")
-
 os.makedirs(OUT_DIR, exist_ok=True)
 os.makedirs(CACHE_DIR, exist_ok=True)
 

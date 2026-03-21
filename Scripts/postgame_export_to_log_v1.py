@@ -4,10 +4,11 @@ import json
 import os
 import requests
 from openpyxl import load_workbook
+from paths import DATA_DIR
 
 API_BASE = "https://ncaa-api.henrygd.me"
 HEADERS = {"User-Agent": "Mozilla/5.0"}
-DATA_ROOT = r"C:\NCAA Model\data"
+DATA_ROOT = str(DATA_DIR)
 
 
 def load_json(path):

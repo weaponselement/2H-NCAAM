@@ -3,13 +3,14 @@ import os
 import sys
 from collections import Counter
 import requests
+from paths import DATA_DIR
 
 API_BASE = "https://ncaa-api.henrygd.me"
 HEADERS = {"User-Agent": "Mozilla/5.0"}
-
-DATA_ROOT = r"C:\NCAA Model\data"
+DATA_ROOT = str(DATA_DIR)
 OUT_DIR = os.path.join(DATA_ROOT, "processed", "schema_inspection")
 os.makedirs(OUT_DIR, exist_ok=True)
+
 
 def fetch_pbp(game_id: str) -> dict:
     # PBP endpoint (same one you used for baseline downloads) [1](https://www.ncaa.com/sports/basketball-men/d1)

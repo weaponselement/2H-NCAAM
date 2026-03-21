@@ -2,12 +2,13 @@ import os
 import glob
 from collections import Counter
 from openpyxl import load_workbook
+from paths import PROJECT_ROOT, SCRIPTS_DIR as PATHS_SCRIPTS_DIR, DATA_DIR as PATHS_DATA_DIR, LOGS_DIR as PATHS_LOGS_DIR, NCAAM_RESULTS_XLSX
 
-ROOT = r"C:\NCAA Model"
-SCRIPTS_DIR = os.path.join(ROOT, "Scripts")
-DATA_DIR = os.path.join(ROOT, "data")
-LOGS_DIR = os.path.join(ROOT, "logs")
-WORKBOOK = os.path.join(LOGS_DIR, "NCAAM Results.xlsx")
+ROOT = str(PROJECT_ROOT)
+SCRIPTS_DIR = str(PATHS_SCRIPTS_DIR)
+DATA_DIR = str(PATHS_DATA_DIR)
+LOGS_DIR = str(PATHS_LOGS_DIR)
+WORKBOOK = str(NCAAM_RESULTS_XLSX)
 
 EXPECTED_DIRS = [
     ROOT,
