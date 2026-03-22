@@ -2,16 +2,9 @@
   "version": "2.0.0",
   "inputs": [
     {
-      "id": "runDateRequired",
-      "type": "promptString",
-      "description": "Backfill date (YYYY-MM-DD) — REQUIRED for backfill tasks",
-      "default": ""
-    },
-    {
       "id": "gameId",
       "type": "promptString",
-      "description": "NCAA gameID (example: 6502232)",
-      "default": ""
+      "description": "NCAA gameID (example: 6534635)"
     }
   ],
   "tasks": [
@@ -39,7 +32,8 @@
         "prep"
       ],
       "problemMatcher": [],
-      "options": { "cwd": "${workspaceFolder}" }
+      "options": { "cwd": "${workspaceFolder}" },
+      "presentation": { "reveal": "always", "panel": "shared", "clear": false }
     },
     {
       "label": "NCAAM: TODAY Download baseline PBP (workers=8,max-rps=4)",
@@ -55,7 +49,8 @@
         "download_pbp"
       ],
       "problemMatcher": [],
-      "options": { "cwd": "${workspaceFolder}" }
+      "options": { "cwd": "${workspaceFolder}" },
+      "presentation": { "reveal": "always", "panel": "shared", "clear": false }
     },
     {
       "label": "NCAAM: TODAY List slate (gameID | away @ home)",
@@ -71,7 +66,8 @@
         "list_slate"
       ],
       "problemMatcher": [],
-      "options": { "cwd": "${workspaceFolder}" }
+      "options": { "cwd": "${workspaceFolder}" },
+      "presentation": { "reveal": "always", "panel": "shared", "clear": false }
     },
     {
       "label": "NCAAM: TODAY Halftime run (pull + report + log) [WRITES EXCEL]",
@@ -89,10 +85,11 @@
         "${input:gameId}"
       ],
       "problemMatcher": [],
-      "options": { "cwd": "${workspaceFolder}" }
+      "options": { "cwd": "${workspaceFolder}" },
+      "presentation": { "reveal": "always", "panel": "shared", "clear": false }
     },
     {
-      "label": "NCAAM: Postgame update (ONLY missing results) [WRITES EXCEL]",
+      "label": "NCAAM: TODAY Postgame update (ONLY missing results) [WRITES EXCEL]",
       "type": "shell",
       "command": "powershell.exe",
       "args": [
@@ -105,93 +102,8 @@
         "postgame_missing"
       ],
       "problemMatcher": [],
-      "options": { "cwd": "${workspaceFolder}" }
-    },
-
-    {
-      "label": "NCAAM: BACKFILL Pregame (prep + download baseline PBP + list slate)",
-      "dependsOrder": "sequence",
-      "dependsOn": [
-        "NCAAM: BACKFILL Prep slate + selected_games + last4 (requires date)",
-        "NCAAM: BACKFILL Download baseline PBP (requires date)",
-        "NCAAM: BACKFILL List slate (requires date)"
-      ],
-      "problemMatcher": []
-    },
-    {
-      "label": "NCAAM: BACKFILL Prep slate + selected_games + last4 (requires date)",
-      "type": "shell",
-      "command": "powershell.exe",
-      "args": [
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        "${workspaceFolder}\\Scripts\\vscode_task_runner.ps1",
-        "-Action",
-        "prep",
-        "-Date",
-        "${input:runDateRequired}"
-      ],
-      "problemMatcher": [],
-      "options": { "cwd": "${workspaceFolder}" }
-    },
-    {
-      "label": "NCAAM: BACKFILL Download baseline PBP (requires date)",
-      "type": "shell",
-      "command": "powershell.exe",
-      "args": [
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        "${workspaceFolder}\\Scripts\\vscode_task_runner.ps1",
-        "-Action",
-        "download_pbp",
-        "-Date",
-        "${input:runDateRequired}"
-      ],
-      "problemMatcher": [],
-      "options": { "cwd": "${workspaceFolder}" }
-    },
-    {
-      "label": "NCAAM: BACKFILL List slate (requires date)",
-      "type": "shell",
-      "command": "powershell.exe",
-      "args": [
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        "${workspaceFolder}\\Scripts\\vscode_task_runner.ps1",
-        "-Action",
-        "list_slate",
-        "-Date",
-        "${input:runDateRequired}"
-      ],
-      "problemMatcher": [],
-      "options": { "cwd": "${workspaceFolder}" }
-    },
-    {
-      "label": "NCAAM: BACKFILL Halftime run (pull + report + log) [WRITES EXCEL] (requires date)",
-      "type": "shell",
-      "command": "powershell.exe",
-      "args": [
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        "${workspaceFolder}\\Scripts\\vscode_task_runner.ps1",
-        "-Action",
-        "halftime_run",
-        "-Date",
-        "${input:runDateRequired}",
-        "-GameId",
-        "${input:gameId}"
-      ],
-      "problemMatcher": [],
-      "options": { "cwd": "${workspaceFolder}" }
+      "options": { "cwd": "${workspaceFolder}" },
+      "presentation": { "reveal": "always", "panel": "shared", "clear": false }
     }
   ]
 }
-``
