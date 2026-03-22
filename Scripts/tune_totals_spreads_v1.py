@@ -107,30 +107,31 @@ for r in valid:
 print('train:', len(train), 'test:', len(test))
 
 # Multivariate linear model
+def train_linear(X, y):
+    # Simple linear regression: y = a*x + b
+    n = len(y)
+    sum_x = sum(X)
+    sum_y = sum(y)
+    sum_xy = sum(x * yy for x, yy in zip(X, y))
+    sum_xsq = sum(x**2 for x in X)
+    # a = (n*sum_xy - sum_x*sum_y) / (n*sum_xsq - sum_x**2)
+    # b = (sum_y - a*sum_x) / n
+    det = n * sum_xsq - sum_x**2
+    if det == 0:
+        return 0, sum_y / n
+    a = (n * sum_xy - sum_x * sum_y) / det
+    b = (sum_y * sum_xsq - sum_x * sum_xy) / det
+    return a, b
+
 def train_multilinear(X_list, y):
     # X_list is list of lists, each inner list is features for one sample
     # y is list of targets
-    import math
-    n = len(X_list)
-    m = len(X_list[0])  # number of features
-    # Add intercept: X = [1, x1, x2, ...]
-    X = [[1] + row for row in X_list]
-    # Compute X^T X
-    XT = [[sum(X[i][j] for i in range(n)) for j in range(m+1)] for _ in range(m+1)]
-    XTX = [[sum(XT[k][i] * XT[k][j] for k in range(m+1)) for j in range(m+1)] for i in range(m+1)]
-    # Compute X^T y
-    XTy = [sum(X[i][j] * y[i] for i in range(n)) for j in range(m+1)]
-    # Invert XTX (simple 4x4 matrix)
-    def invert_4x4(M):
-        # Hardcoded for 4x4, but since m=3, 4x4
-        # Use numpy-like, but manual
-        # For simplicity, assume it's invertible and use formula
-        # This is complex; for demo, use a library or skip
-        # Since no numpy, perhaps use a simple method or reduce to 2 features
-        pass
-    # For now, to make it work, reduce to 2 features: home_lead and pace
-    # Skip date for simplicity
-    return train_linear([row[0] for row in X_list], y)  # fallback to single
+    X = np.array([[1] + row for row in X_list])  # add intercept
+    y_arr = np.array(y)
+    # Solve X^T X beta = X^T y
+    XT = X.T
+    beta = np.linalg.inv(XT @ X) @ (XT @ y_arr)
+    return beta  # coefficients including intercept
 
 # For now, use single feature, but add pace as additional
 def train_linear_multi(X1, X2, y):
