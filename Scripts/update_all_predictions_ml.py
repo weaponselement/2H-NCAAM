@@ -38,6 +38,15 @@ for target in ['ActualMargin', 'Actual2H', 'ActualTotal']:
         print(f"Model {model_path} not found")
         models[target] = None
 
+# Load model error stats for dynamic range widths
+error_stats_path = models_dir / 'model_error_stats.json'
+model_error_stats = {}
+if error_stats_path.exists():
+    with open(error_stats_path, 'r') as f:
+        model_error_stats = json.load(f)
+else:
+    print(f"Warning: {error_stats_path} not found; using defaults")
+
 # Load workbook
 path = Path('logs/NCAAM Results.xlsx')
 if not path.exists():
@@ -115,11 +124,19 @@ for i, row in enumerate(rows[1:], start=2):  # start=2 for 1-based row
     home_offense_diff = home_avg_scored - away_avg_allowed
     away_offense_diff = away_avg_scored - home_avg_allowed
 
+    # 1H efficiency
+    home_eff_ppp = 0
+    away_eff_ppp = 0
+    if halftime_total and halftime_total > 0:
+        home_eff_ppp = home_ht / halftime_total
+        away_eff_ppp = away_ht / halftime_total
+
     features = [
         home_lead, pace_run_and_gun, date_days,
         home_avg_scored, home_avg_allowed, away_avg_scored, away_avg_allowed,
         halftime_total if halftime_total is not None else 0,
-        home_offense_diff, away_offense_diff
+        home_offense_diff, away_offense_diff,
+        home_eff_ppp, away_eff_ppp
     ]
 
     # Predict
@@ -156,19 +173,26 @@ for i, row in enumerate(rows[1:], start=2):  # start=2 for 1-based row
     ws[f"H{i}"] = margin_range
     ws[f"K{i}"] = confidence
 
-    # 2H range (integers)
+    # 2H range (integers) - dynamic width from model error, plus narrower option
     if pred_2h is not None:
-        range_half_width = 5
+        base_err = model_error_stats.get('Actual2H', 10.33)
+        range_half_width = max(2, min(5, int(round(base_err * 0.6))))
+        narrow_half = max(1, int(round(base_err * 0.35)))
         low = max(0, pred_2h - range_half_width)
         high = pred_2h + range_half_width
         ws[f"I{i}"] = f"{low}-{high}"
+        # also store narrow 2H range in next column if desired
+        ws[f"L{i}"] = f"{max(0,pred_2h-narrow_half)}-{pred_2h+narrow_half}"
 
-    # Total range (integers)
+    # Total range (integers) - dynamic width
     if pred_total is not None:
-        range_half_width = 6
+        base_err = model_error_stats.get('ActualTotal', 10.33)
+        range_half_width = max(3, min(7, int(round(base_err * 0.6))))
+        narrow_half = max(2, int(round(base_err * 0.4)))
         low = max(0, pred_total - range_half_width)
         high = pred_total + range_half_width
         ws[f"J{i}"] = f"{low}-{high}"
+        ws[f"M{i}"] = f"{max(0,pred_total-narrow_half)}-{pred_total+narrow_half}"
 
     updated += 1
     if updated % 100 == 0:

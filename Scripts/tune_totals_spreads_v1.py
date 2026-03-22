@@ -67,6 +67,18 @@ def parse_halftime_score(hs):
 for r in data:
     r['home_lead'] = parse_halftime_score(r.get('HalftimeScore'))
     r['pace_run_and_gun'] = 1 if str(r.get('PaceProfile')).lower() == 'run_and_gun' else 0
+    # Extract halftime home/away scores
+    halftime_score = r.get('HalftimeScore')
+    r['halftime_home'] = None
+    r['halftime_away'] = None
+    if halftime_score and '-' in str(halftime_score):
+        parts = str(halftime_score).split('-')
+        try:
+            r['halftime_away'] = float(parts[0])
+            r['halftime_home'] = float(parts[1])
+        except:
+            r['halftime_away'] = None
+            r['halftime_home'] = None
     # Add date feature: days since 2026-01-01
     try:
         d = datetime.strptime(str(r.get('Date')), '%Y-%m-%d')
@@ -99,6 +111,16 @@ for r in data:
 
     r['home_offense_diff'] = r['home_avg_scored'] - r['away_avg_allowed']
     r['away_offense_diff'] = r['away_avg_scored'] - r['home_avg_allowed']
+
+    # Home/away 1H scoring efficiency
+    if r.get('halftime_total') and r.get('halftime_total') != 0:
+        r['half_possessions'] = r['halftime_total']
+        r['home_eff_ppp'] = r['halftime_home'] / r['half_possessions'] if r.get('halftime_home') is not None else 0
+        r['away_eff_ppp'] = r['halftime_away'] / r['half_possessions'] if r.get('halftime_away') is not None else 0
+    else:
+        r['half_possessions'] = 0
+        r['home_eff_ppp'] = 0
+        r['away_eff_ppp'] = 0
 
 # Filter valid rows
 valid = [r for r in data if r['home_lead'] is not None and r.get('ActualMargin') is not None and r.get('Actual2H') is not None and r.get('ActualTotal') is not None and r.get('date_days') is not None]
@@ -175,18 +197,21 @@ def predict_linear_multi(a, b, c, X1, X2):
 
 # For each target
 targets = ['ActualMargin', 'Actual2H', 'ActualTotal']
+error_stats = {}
 for target in targets:
     print(f'\n--- {target} ---')
     train_X = [[
         r['home_lead'], r['pace_run_and_gun'], r['date_days'],
         r['home_avg_scored'], r['home_avg_allowed'], r['away_avg_scored'], r['away_avg_allowed'],
-        r['halftime_total'], r['home_offense_diff'], r['away_offense_diff']
+        r['halftime_total'], r['home_offense_diff'], r['away_offense_diff'],
+        r['home_eff_ppp'], r['away_eff_ppp']
     ] for r in train]
     train_y = [r[target] for r in train]
     test_X = [[
         r['home_lead'], r['pace_run_and_gun'], r['date_days'],
         r['home_avg_scored'], r['home_avg_allowed'], r['away_avg_scored'], r['away_avg_allowed'],
-        r['halftime_total'], r['home_offense_diff'], r['away_offense_diff']
+        r['halftime_total'], r['home_offense_diff'], r['away_offense_diff'],
+        r['home_eff_ppp'], r['away_eff_ppp']
     ] for r in test]
     test_y = [r[target] for r in test]
     
@@ -199,6 +224,7 @@ for target in targets:
     
     # MAE
     mae = mean_absolute_error(test_y, pred_y)
+    error_stats[target] = mae
     print(f'test MAE: {mae:.2f}')
     
     # Baseline
@@ -214,10 +240,17 @@ for target in targets:
     features = [
         'home_lead', 'pace_run_and_gun', 'date_days',
         'home_avg_scored', 'home_avg_allowed', 'away_avg_scored', 'away_avg_allowed',
-        'halftime_total', 'home_offense_diff', 'away_offense_diff'
+        'halftime_total', 'home_offense_diff', 'away_offense_diff',
+        'home_eff_ppp', 'away_eff_ppp'
     ]
     for f, imp in zip(features, importances):
         print(f'  {f}: {imp:.3f}')
+
+# Persist error stats for prediction range logic
+error_path = Path('models') / 'model_error_stats.json'
+with open(error_path, 'w') as f:
+    json.dump(error_stats, f)
+print(f'Saved error stats to {error_path}')
 
 # Train final models on all data
 print('\n--- Final Models on All Data ---')
@@ -227,7 +260,8 @@ for target in targets:
     X_all = [[
         r['home_lead'], r['pace_run_and_gun'], r['date_days'],
         r['home_avg_scored'], r['home_avg_allowed'], r['away_avg_scored'], r['away_avg_allowed'],
-        r['halftime_total'], r['home_offense_diff'], r['away_offense_diff']
+        r['halftime_total'], r['home_offense_diff'], r['away_offense_diff'],
+        r['home_eff_ppp'], r['away_eff_ppp']
     ] for r in valid]
     y_all = [r[target] for r in valid]
     
