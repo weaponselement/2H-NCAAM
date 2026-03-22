@@ -59,6 +59,7 @@ def first_empty_row(ws):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("game_id")
+    parser.add_argument("--overwrite", action="store_true", help="Overwrite existing entry if it exists")
     args = parser.parse_args()
 
     report_path = latest_report_path(args.game_id)
@@ -94,11 +95,15 @@ def main():
 
     existing_row = find_row_by_game_id(ws, args.game_id)
     if existing_row is not None:
-        print(f"SKIP: game {args.game_id} already exists in workbook at row {existing_row}")
-        print(f"Workbook: {RESULTS_XLSX}")
-        return
-
-    row = first_empty_row(ws)
+        if not args.overwrite:
+            print(f"SKIP: game {args.game_id} already exists in workbook at row {existing_row}")
+            print(f"Workbook: {RESULTS_XLSX}")
+            return
+        else:
+            row = existing_row
+            print(f"OVERWRITE: updating existing row {row} for game {args.game_id}")
+    else:
+        row = first_empty_row(ws)
 
     ws[f"A{row}"] = report.get("run_date", "")
     ws[f"B{row}"] = args.game_id

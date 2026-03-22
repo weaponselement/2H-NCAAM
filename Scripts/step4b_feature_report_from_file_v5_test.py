@@ -6,8 +6,23 @@ import re
 from collections import Counter
 from datetime import datetime
 from statistics import mean
+import pickle
+from pathlib import Path
 
 DEFAULT_DATA_ROOT = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
+
+def load_prediction_models():
+    models_dir = Path(__file__).parent.parent / 'models'
+    models = {}
+    for target in ['ActualMargin', 'Actual2H', 'ActualTotal']:
+        model_path = models_dir / f'{target.lower()}_model.pkl'
+        if model_path.exists():
+            with open(model_path, 'rb') as f:
+                models[target] = pickle.load(f)
+        else:
+            print(f"Warning: Model {model_path} not found")
+            models[target] = None
+    return models
 
 SEGMENTS = [
     (20 * 60, 16 * 60, "20:00-16:00"),
@@ -726,128 +741,55 @@ def synthesize_game(
     game_meta: dict,
     foul_pressure: dict,
     scoring_concentration: dict,
+    prediction_models: dict,
+    run_date: str,
 ):
     margin = (home_ht or 0) - (away_ht or 0)
-    combined_poss = game_meta.get("estimated_possessions_per_team_1H")
-    whistle_heavy = game_meta.get("whistle_events_count", 0) >= 14
-    dead_ball_heavy = game_meta.get("dead_ball_events", 0) >= 20
-    tempo_flags = game_meta.get("tempo_flags", {})
-    accelerating_late = tempo_flags.get("accelerating_late", False)
-    slowing_late = tempo_flags.get("slowing_late", False)
-    pace_profile = game_meta.get("pace_profile")
-
-    home_dep = home_live.get("star_dependency", {}).get("top2_share")
-    away_dep = away_live.get("star_dependency", {}).get("top2_share")
-    home_to = home_live.get("TO", 0)
-    away_to = away_live.get("TO", 0)
-    home_live_to = home_live.get("TO_live", 0)
-    away_live_to = away_live.get("TO_live", 0)
-
-    home_second = home_live.get("second_chance_points", 0)
-    away_second = away_live.get("second_chance_points", 0)
-
-    home_big_run = max([r.get("points", 0) for r in home_live.get("scoring_runs", [])], default=0)
-    away_big_run = max([r.get("points", 0) for r in away_live.get("scoring_runs", [])], default=0)
-
-    structural_home = 0.0
-    structural_away = 0.0
-    reasons = []
-
-    if margin > 0:
-        structural_home += 1.5
-        reasons.append(f"{home_seo} leads by {margin} at half")
-    elif margin < 0:
-        structural_away += 1.5
-        reasons.append(f"{away_seo} leads by {-margin} at half")
-
-    if home_to < away_to:
-        structural_home += 1.0
-        reasons.append(f"{home_seo} has better ball security ({home_to} TO vs {away_to})")
-    elif away_to < home_to:
-        structural_away += 1.0
-        reasons.append(f"{away_seo} has better ball security ({away_to} TO vs {home_to})")
-
-    if home_live_to + 2 <= away_live_to:
-        structural_home += 0.75
-        reasons.append(f"{away_seo} committed more damaging live-ball turnovers ({away_live_to} vs {home_live_to})")
-    elif away_live_to + 2 <= home_live_to:
-        structural_away += 0.75
-        reasons.append(f"{home_seo} committed more damaging live-ball turnovers ({home_live_to} vs {away_live_to})")
-
-    if home_second > away_second:
-        structural_home += 0.75
-        reasons.append(f"{home_seo} created more second-chance scoring")
-    elif away_second > home_second:
-        structural_away += 0.75
-        reasons.append(f"{away_seo} created more second-chance scoring")
-
-    if home_dep is not None and away_dep is not None:
-        if home_dep + 0.08 < away_dep:
-            structural_home += 0.75
-            reasons.append(f"{home_seo} offense is less concentrated in 1-2 scorers")
-        elif away_dep + 0.08 < home_dep:
-            structural_away += 0.75
-            reasons.append(f"{away_seo} offense is less concentrated in 1-2 scorers")
-
-    if home_live.get("PF", 0) + 2 < away_live.get("PF", 0):
-        structural_home += 0.5
-        reasons.append(f"{home_seo} avoided foul trouble better")
-    elif away_live.get("PF", 0) + 2 < home_live.get("PF", 0):
-        structural_away += 0.5
-        reasons.append(f"{away_seo} avoided foul trouble better")
-
-    if home_big_run >= away_big_run + 4:
-        structural_home += 0.5
-        reasons.append(f"{home_seo} showed stronger sustained run creation (best run {home_big_run}-{away_big_run})")
-    elif away_big_run >= home_big_run + 4:
-        structural_away += 0.5
-        reasons.append(f"{away_seo} showed stronger sustained run creation (best run {away_big_run}-{home_big_run})")
-
-    if combined_poss is not None:
-        if combined_poss < 32:
-            raw_expected_2h = 61
-            variance = "LOW-MED"
-        elif combined_poss < 36:
-            raw_expected_2h = 67
-            variance = "MEDIUM"
-        else:
-            raw_expected_2h = 73
-            variance = "MEDIUM-HIGH"
-    else:
-        raw_expected_2h = 67
-        variance = "MEDIUM"
-
-    if whistle_heavy:
-        raw_expected_2h += 3
-    if dead_ball_heavy:
-        raw_expected_2h -= 2
-    if accelerating_late:
-        raw_expected_2h += 2
-    if slowing_late:
-        raw_expected_2h -= 2
-
-    if foul_pressure.get("strong_foul_escalation", False):
-        raw_expected_2h += 2
-        reasons.append("Strong foul escalation environment supports extra 2H scoring")
-
-        if foul_pressure.get("foul_pressure_edge") == "home":
-            structural_home += 0.35
-            reasons.append(f"{away_seo} committed much heavier foul volume")
-        elif foul_pressure.get("foul_pressure_edge") == "away":
-            structural_away += 0.35
-            reasons.append(f"{home_seo} committed much heavier foul volume")
-
-    calibration_adjustment, calibration_reasons = compute_calibration_adjustment(
-        home_ht=home_ht,
-        away_ht=away_ht,
-        expected_2h=raw_expected_2h,
-        pace_profile=pace_profile,
-        scoring_concentration=scoring_concentration,
-    )
-
-    calibrated_expected_2h = raw_expected_2h + calibration_adjustment
-
     range_half_width = 5
+    # Compute features for ML models
+    home_lead = margin
+    pace_profile = game_meta.get("pace_profile", "")
+    pace_run_and_gun = 1 if pace_profile.lower() == 'run_and_gun' else 0
+
+    # date_days
+    try:
+        d = datetime.strptime(run_date, '%Y-%m-%d')
+        start = datetime(2026, 1, 1)
+        date_days = (d - start).days
+    except:
+        date_days = 0
+
+    # team stats
+    home_avg_scored = home_base.get("score_for", {}).get("mean", 70)
+    home_avg_allowed = home_base.get("score_against", {}).get("mean", 70)
+    away_avg_scored = away_base.get("score_for", {}).get("mean", 70)
+    away_avg_allowed = away_base.get("score_against", {}).get("mean", 70)
+
+    features = [home_lead, pace_run_and_gun, date_days, home_avg_scored, home_avg_allowed, away_avg_scored, away_avg_allowed]
+
+    # Predict
+    pred_margin = None
+    pred_2h = None
+    pred_total = None
+    if prediction_models.get('ActualMargin'):
+        pred_margin = prediction_models['ActualMargin'].predict([features])[0]
+    if prediction_models.get('Actual2H'):
+        pred_2h = prediction_models['Actual2H'].predict([features])[0]
+    if prediction_models.get('ActualTotal'):
+        pred_total = prediction_models['ActualTotal'].predict([features])[0]
+
+    # Use predictions
+    winner = home_seo if pred_margin > 0 else away_seo
+    abs_margin = abs(pred_margin)
+    if abs_margin >= 8:
+        margin_range = "6-11"
+        confidence = "MEDIUM-HIGH"
+    elif abs_margin >= 5:
+        margin_range = "3-8"
+        confidence = "MEDIUM"
+    else:
+        margin_range = "1-5"
+        confidence = "LOW-MEDIUM"
 
     if foul_pressure.get("strong_foul_escalation", False):
         range_half_width += 1
@@ -862,40 +804,32 @@ def synthesize_game(
     if pace_profile == "moderate":
         range_half_width += 1
 
-    for r in calibration_reasons:
-        reasons.append(f"calibration: {r}")
-
-    winner = home_seo if structural_home >= structural_away else away_seo
-    edge = abs(structural_home - structural_away)
-
-    if edge >= 2.75:
-        margin_range = "6-11"
-        confidence = "MEDIUM-HIGH"
-    elif edge >= 1.5:
-        margin_range = "3-8"
-        confidence = "MEDIUM"
+    # For 2H and total
+    if pred_2h is not None:
+        calibrated_expected_2h = pred_2h
+        variance = "MEDIUM"
+        raw_expected_2h = pred_2h
+        calibration_adjustment = 0
     else:
-        margin_range = "1-5"
-        confidence = "LOW-MEDIUM"
+        calibrated_expected_2h = 67  # default
+        variance = "MEDIUM"
+        raw_expected_2h = 67
+        calibration_adjustment = 0
 
-    final_total_mid = (home_ht or 0) + (away_ht or 0) + calibrated_expected_2h
+    if pred_total is not None:
+        final_total_mid = pred_total
+    else:
+        final_total_mid = (home_ht or 0) + (away_ht or 0) + calibrated_expected_2h
+
     total_range = f"{final_total_mid - (range_half_width + 1)}-{final_total_mid + (range_half_width + 1)}"
 
-    biggest_uncertainty = "Whether 1H scoring came from repeatable creation or from fragile shot variance."
-    if home_dep is not None and home_dep >= 0.68:
-        biggest_uncertainty = f"{home_seo}'s heavy scorer concentration could flatten if that primary creator cools or gets loaded up on."
-    elif away_dep is not None and away_dep >= 0.68:
-        biggest_uncertainty = f"{away_seo}'s heavy scorer concentration could flatten if that primary creator cools or gets loaded up on."
-
-    what_flips = "A whistle swing, foul trouble on key handlers, or live-ball turnover surge would flip the projection fastest."
-    if abs(home_live_to - away_live_to) >= 3:
-        what_flips = "If the team currently losing the live-ball turnover battle stabilizes that, the game state can flip quickly."
+    reasons = ["ML-based prediction using halftime score, pace, date, and team strength metrics."]
 
     return {
         "gameID": game_id,
         "winner_projection": winner,
         "winner_margin_range": margin_range,
-        "structural_scores": {home_seo: structural_home, away_seo: structural_away},
+        "structural_scores": {},  # Not used in ML
         "reasons": reasons,
         "second_half_points_projection": {
             "raw_mid": raw_expected_2h,
@@ -910,9 +844,9 @@ def synthesize_game(
             "lean": "OVER" if calibrated_expected_2h >= 70 else "UNDER" if calibrated_expected_2h <= 64 else "NO STRONG LEAN",
         },
         "confidence": confidence,
-        "biggest_uncertainty": biggest_uncertainty,
-        "flip_condition": what_flips,
-        "key_assumption": "1H possession environment and whistle texture stay broadly similar into the first 10 minutes of 2H.",
+        "biggest_uncertainty": "Model accuracy on unseen data; potential for outlier performances not captured in training.",
+        "flip_condition": "Significant deviation from expected halftime lead or team stat trends.",
+        "key_assumption": "Halftime conditions and team stats remain predictive into the second half.",
     }
 
 
@@ -956,6 +890,9 @@ def main():
 
     baseline = load_json(manifest_path)
     run_date = baseline.get("run_date", "unknown-date")
+    
+    # Load prediction models
+    prediction_models = load_prediction_models()
     selected_path = args.selected_games or os.path.join(
         data_root, "processed", "selected_games", f"selected_games_{run_date}.json"
     )
@@ -1033,6 +970,8 @@ def main():
         live_state["game"],
         foul_pressure,
         scoring_concentration,
+        prediction_models,
+        run_date,
     )
 
     out_dir = os.path.join(data_root, "processed", "reports")

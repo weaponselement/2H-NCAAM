@@ -35,6 +35,7 @@ def run_py(script_name: str, args_list):
 def main():
     ap = argparse.ArgumentParser(description="Backfill: pull halftime PBP + generate report + log prediction for all games on a date, skipping any gameIDs already in workbook.")
     ap.add_argument("--date", required=True, help="YYYY-MM-DD")
+    ap.add_argument("--overwrite", action="store_true", help="Overwrite existing predictions")
     args = ap.parse_args()
 
     date = args.date.strip()
@@ -67,8 +68,8 @@ def main():
         if not gid:
             continue
 
-        # Skip if already logged in workbook
-        if find_row_by_game_id(ws, gid) is not None:
+        # Skip if already logged in workbook (unless overwrite)
+        if find_row_by_game_id(ws, gid) is not None and not args.overwrite:
             skipped_existing += 1
             print(f"[{i}/{total}] SKIP (already logged) gameID={gid}")
             continue
@@ -94,8 +95,8 @@ def main():
             print(f" FAIL report rc={rc} gameID={gid}")
             continue
 
-        # 3) Log prediction (this script now skips dupes if somehow repeated)
-        rc = run_py("log_prediction_to_results_v1.py", [gid])
+        # 3) Log prediction (overwrite if exists to update with new models)
+        rc = run_py("log_prediction_to_results_v1.py", [gid, "--overwrite"])
         if rc != 0:
             failed += 1
             print(f" FAIL log rc={rc} gameID={gid}")
