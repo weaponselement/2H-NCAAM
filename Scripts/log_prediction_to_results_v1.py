@@ -9,6 +9,16 @@ RESULTS_XLSX = str(NCAAM_RESULTS_XLSX)
 DATA_ROOT = str(DATA_DIR)
 
 
+def find_row_by_game_id(ws, game_id: str):
+    """Return row number where column B == game_id, else None."""
+    row = 2
+    while ws[f"B{row}"].value not in (None, ""):
+        if ws[f"B{row}"].value == game_id:
+            return row
+        row += 1
+    return None
+
+
 def latest_report_path(game_id: str):
     pattern = os.path.join(
         DATA_ROOT,
@@ -78,8 +88,15 @@ def main():
     pred_2h = (projection.get("second_half_points_projection") or {}).get("range", "")
     pred_total = (projection.get("full_game_total_projection") or {}).get("range", "")
 
+    
     wb = load_workbook(RESULTS_XLSX)
     ws = wb["Game_Log"]
+
+    existing_row = find_row_by_game_id(ws, args.game_id)
+    if existing_row is not None:
+        print(f"SKIP: game {args.game_id} already exists in workbook at row {existing_row}")
+        print(f"Workbook: {RESULTS_XLSX}")
+        return
 
     row = first_empty_row(ws)
 

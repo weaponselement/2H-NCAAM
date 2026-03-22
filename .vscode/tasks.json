@@ -89,6 +89,21 @@
       "presentation": { "reveal": "always", "panel": "shared", "clear": false }
     },
     {
+      "label": "NCAAM: BACKFILL Halftime predictions for full slate (asks date) [WRITES EXCEL]",
+      "type": "shell",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\Scripts\\backfill_halftime_predictions_for_date_task_v1.ps1"
+      ],
+      "problemMatcher": [],
+      "options": { "cwd": "${workspaceFolder}" },
+      "presentation": { "reveal": "always", "panel": "shared", "clear": false }
+    },
+    {
       "label": "NCAAM: TODAY Postgame update (ONLY missing results) [WRITES EXCEL]",
       "type": "shell",
       "command": "powershell.exe",
