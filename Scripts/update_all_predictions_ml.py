@@ -103,12 +103,37 @@ for i, row in enumerate(rows[1:], start=2):  # start=2 for 1-based row
     away_avg_scored = away_stats.get('avg_scored', 70)
     away_avg_allowed = away_stats.get('avg_allowed', 70)
 
-    features = [home_lead, pace_run_and_gun, date_days, home_avg_scored, home_avg_allowed, away_avg_scored, away_avg_allowed]
+    # Derived features (same as training)
+    halftime_total = None
+    if '-' in str(halftime_score):
+        parts = str(halftime_score).split('-')
+        try:
+            halftime_total = float(parts[0]) + float(parts[1])
+        except:
+            halftime_total = None
+
+    home_offense_diff = home_avg_scored - away_avg_allowed
+    away_offense_diff = away_avg_scored - home_avg_allowed
+
+    features = [
+        home_lead, pace_run_and_gun, date_days,
+        home_avg_scored, home_avg_allowed, away_avg_scored, away_avg_allowed,
+        halftime_total if halftime_total is not None else 0,
+        home_offense_diff, away_offense_diff
+    ]
 
     # Predict
     pred_margin = models['ActualMargin'].predict([features])[0] if models['ActualMargin'] else None
-    pred_2h = models['Actual2H'].predict([features])[0] if models['Actual2H'] else None
+    pred_2h    = models['Actual2H'].predict([features])[0] if models['Actual2H'] else None
     pred_total = models['ActualTotal'].predict([features])[0] if models['ActualTotal'] else None
+
+    # Convert to whole number predictions
+    if pred_margin is not None:
+        pred_margin = int(round(pred_margin))
+    if pred_2h is not None:
+        pred_2h = int(round(pred_2h))
+    if pred_total is not None:
+        pred_total = int(round(pred_total))
 
     if pred_margin is None:
         continue
@@ -131,19 +156,19 @@ for i, row in enumerate(rows[1:], start=2):  # start=2 for 1-based row
     ws[f"H{i}"] = margin_range
     ws[f"K{i}"] = confidence
 
-    # 2H range
+    # 2H range (integers)
     if pred_2h is not None:
         range_half_width = 5
-        low = pred_2h - range_half_width
+        low = max(0, pred_2h - range_half_width)
         high = pred_2h + range_half_width
-        ws[f"I{i}"] = f"{low:.1f}-{high:.1f}"
+        ws[f"I{i}"] = f"{low}-{high}"
 
-    # Total range
+    # Total range (integers)
     if pred_total is not None:
-        range_half_width = 6  # slightly wider for totals
-        low = pred_total - range_half_width
+        range_half_width = 6
+        low = max(0, pred_total - range_half_width)
         high = pred_total + range_half_width
-        ws[f"J{i}"] = f"{low:.1f}-{high:.1f}"
+        ws[f"J{i}"] = f"{low}-{high}"
 
     updated += 1
     if updated % 100 == 0:

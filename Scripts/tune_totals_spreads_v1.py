@@ -86,6 +86,20 @@ for r in data:
     r['away_avg_scored'] = away_stats.get('avg_scored', 70)
     r['away_avg_allowed'] = away_stats.get('avg_allowed', 70)
 
+    # New derived features (top 2 selected enhancements)
+    halftime_score = r.get('HalftimeScore')
+    if halftime_score and '-' in str(halftime_score):
+        parts = str(halftime_score).split('-')
+        try:
+            r['halftime_total'] = float(parts[0]) + float(parts[1])
+        except:
+            r['halftime_total'] = None
+    else:
+        r['halftime_total'] = None
+
+    r['home_offense_diff'] = r['home_avg_scored'] - r['away_avg_allowed']
+    r['away_offense_diff'] = r['away_avg_scored'] - r['home_avg_allowed']
+
 # Filter valid rows
 valid = [r for r in data if r['home_lead'] is not None and r.get('ActualMargin') is not None and r.get('Actual2H') is not None and r.get('ActualTotal') is not None and r.get('date_days') is not None]
 print('valid rows for tuning:', len(valid))
@@ -163,9 +177,17 @@ def predict_linear_multi(a, b, c, X1, X2):
 targets = ['ActualMargin', 'Actual2H', 'ActualTotal']
 for target in targets:
     print(f'\n--- {target} ---')
-    train_X = [[r['home_lead'], r['pace_run_and_gun'], r['date_days'], r['home_avg_scored'], r['home_avg_allowed'], r['away_avg_scored'], r['away_avg_allowed']] for r in train]
+    train_X = [[
+        r['home_lead'], r['pace_run_and_gun'], r['date_days'],
+        r['home_avg_scored'], r['home_avg_allowed'], r['away_avg_scored'], r['away_avg_allowed'],
+        r['halftime_total'], r['home_offense_diff'], r['away_offense_diff']
+    ] for r in train]
     train_y = [r[target] for r in train]
-    test_X = [[r['home_lead'], r['pace_run_and_gun'], r['date_days'], r['home_avg_scored'], r['home_avg_allowed'], r['away_avg_scored'], r['away_avg_allowed']] for r in test]
+    test_X = [[
+        r['home_lead'], r['pace_run_and_gun'], r['date_days'],
+        r['home_avg_scored'], r['home_avg_allowed'], r['away_avg_scored'], r['away_avg_allowed'],
+        r['halftime_total'], r['home_offense_diff'], r['away_offense_diff']
+    ] for r in test]
     test_y = [r[target] for r in test]
     
     # Train Random Forest
@@ -189,7 +211,11 @@ for target in targets:
     
     # Feature importance
     importances = model.feature_importances_
-    features = ['home_lead', 'pace_run_and_gun', 'date_days', 'home_avg_scored', 'home_avg_allowed', 'away_avg_scored', 'away_avg_allowed']
+    features = [
+        'home_lead', 'pace_run_and_gun', 'date_days',
+        'home_avg_scored', 'home_avg_allowed', 'away_avg_scored', 'away_avg_allowed',
+        'halftime_total', 'home_offense_diff', 'away_offense_diff'
+    ]
     for f, imp in zip(features, importances):
         print(f'  {f}: {imp:.3f}')
 
@@ -198,7 +224,11 @@ print('\n--- Final Models on All Data ---')
 final_models = {}
 for target in targets:
     print(f'Training final {target} model...')
-    X_all = [[r['home_lead'], r['pace_run_and_gun'], r['date_days'], r['home_avg_scored'], r['home_avg_allowed'], r['away_avg_scored'], r['away_avg_allowed']] for r in valid]
+    X_all = [[
+        r['home_lead'], r['pace_run_and_gun'], r['date_days'],
+        r['home_avg_scored'], r['home_avg_allowed'], r['away_avg_scored'], r['away_avg_allowed'],
+        r['halftime_total'], r['home_offense_diff'], r['away_offense_diff']
+    ] for r in valid]
     y_all = [r[target] for r in valid]
     
     final_model = RandomForestRegressor(n_estimators=100, random_state=42)
