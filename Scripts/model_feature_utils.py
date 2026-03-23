@@ -58,6 +58,15 @@ FEATURE_NAMES = [
     'away_paint_fg_share',
     'home_late_scoring_share',
     'away_late_scoring_share',
+    'three_rate_gap',
+    'paint_share_gap',
+    'ft_rate_gap',
+    'turnover_rate_gap',
+    'live_ball_turnover_share_gap',
+    'orb_rate_gap',
+    'assist_rate_gap',
+    'paint_fg_share_gap',
+    'late_scoring_share_gap',
 ]
 
 
@@ -210,6 +219,18 @@ def build_feature_dict(
             if key in pbp_values and value is not None:
                 pbp_values[key] = float(value)
 
+    three_rate_gap = pbp_values['home_three_rate'] - pbp_values['away_three_rate']
+    paint_share_gap = pbp_values['home_paint_share'] - pbp_values['away_paint_share']
+    ft_rate_gap = pbp_values['home_ft_rate'] - pbp_values['away_ft_rate']
+    turnover_rate_gap = pbp_values['home_turnover_rate'] - pbp_values['away_turnover_rate']
+    live_ball_turnover_share_gap = (
+        pbp_values['home_live_ball_turnover_share'] - pbp_values['away_live_ball_turnover_share']
+    )
+    orb_rate_gap = pbp_values['home_orb_rate'] - pbp_values['away_orb_rate']
+    assist_rate_gap = pbp_values['home_assist_rate'] - pbp_values['away_assist_rate']
+    paint_fg_share_gap = pbp_values['home_paint_fg_share'] - pbp_values['away_paint_fg_share']
+    late_scoring_share_gap = pbp_values['home_late_scoring_share'] - pbp_values['away_late_scoring_share']
+
     return {
         'home_lead': home_lead,
         'abs_home_lead': abs(home_lead),
@@ -262,6 +283,15 @@ def build_feature_dict(
         'away_paint_fg_share': pbp_values['away_paint_fg_share'],
         'home_late_scoring_share': pbp_values['home_late_scoring_share'],
         'away_late_scoring_share': pbp_values['away_late_scoring_share'],
+        'three_rate_gap': three_rate_gap,
+        'paint_share_gap': paint_share_gap,
+        'ft_rate_gap': ft_rate_gap,
+        'turnover_rate_gap': turnover_rate_gap,
+        'live_ball_turnover_share_gap': live_ball_turnover_share_gap,
+        'orb_rate_gap': orb_rate_gap,
+        'assist_rate_gap': assist_rate_gap,
+        'paint_fg_share_gap': paint_fg_share_gap,
+        'late_scoring_share_gap': late_scoring_share_gap,
     }
 
 

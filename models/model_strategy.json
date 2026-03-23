@@ -1,7 +1,7 @@
 {
   "total_prediction_strategy": "derived_2h",
-  "direct_total_mae": 11.10451923076923,
-  "derived_total_mae": 10.508798076923078,
+  "direct_total_mae": 10.960528846153846,
+  "derived_total_mae": 10.574951923076922,
   "feature_names": [
     "home_lead",
     "abs_home_lead",
@@ -53,6 +53,15 @@
     "home_paint_fg_share",
     "away_paint_fg_share",
     "home_late_scoring_share",
-    "away_late_scoring_share"
+    "away_late_scoring_share",
+    "three_rate_gap",
+    "paint_share_gap",
+    "ft_rate_gap",
+    "turnover_rate_gap",
+    "live_ball_turnover_share_gap",
+    "orb_rate_gap",
+    "assist_rate_gap",
+    "paint_fg_share_gap",
+    "late_scoring_share_gap"
   ]
 }
