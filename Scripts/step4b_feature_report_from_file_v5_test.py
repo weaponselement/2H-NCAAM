@@ -737,18 +737,25 @@ def build_scoring_concentration_summary(home_stats: dict, away_stats: dict):
     }
 
 
-def build_live_pbp_feature_dict(home_stats: dict, away_stats: dict):
+def build_live_pbp_feature_dict(home_stats: dict, away_stats: dict, game_state: dict | None = None):
     def rate(numerator, denominator, default):
         if denominator in (None, 0):
             return default
         return round(float(numerator or 0) / float(denominator), 4)
 
+    game_state = game_state or {}
     home_fga = float(home_stats.get("FGA", 0) or 0)
     away_fga = float(away_stats.get("FGA", 0) or 0)
     home_poss = float(home_stats.get("poss_est", 0) or 0)
     away_poss = float(away_stats.get("poss_est", 0) or 0)
     home_orb_chances = float((home_stats.get("ORB", 0) or 0) + (away_stats.get("DRB", 0) or 0))
     away_orb_chances = float((away_stats.get("ORB", 0) or 0) + (home_stats.get("DRB", 0) or 0))
+    estimated_possessions = float(game_state.get("estimated_possessions_per_team_1H", 39.3) or 39.3)
+    possession_change_markers = float(game_state.get("possession_change_markers", 0) or 0)
+    dead_ball_events = float(game_state.get("dead_ball_events", 0) or 0)
+    long_dead_ball_gaps = float(game_state.get("long_dead_ball_gaps", 0) or 0)
+    whistle_events = float(game_state.get("whistle_events_count", 0) or 0)
+    tempo_flags = game_state.get("tempo_flags", {}) or {}
 
     return {
         "home_three_rate": rate(home_stats.get("3PA", 0), home_fga, 0.33),
@@ -763,6 +770,13 @@ def build_live_pbp_feature_dict(home_stats: dict, away_stats: dict):
         "away_live_ball_turnover_share": rate(away_stats.get("TO_live", 0), away_stats.get("TO", 0), 0.4),
         "home_orb_rate": rate(home_stats.get("ORB", 0), home_orb_chances, 0.28),
         "away_orb_rate": rate(away_stats.get("ORB", 0), away_orb_chances, 0.28),
+        "possessions_per_team_1h": estimated_possessions,
+        "dead_ball_rate": rate(dead_ball_events, estimated_possessions, 2.2),
+        "long_gap_rate": rate(long_dead_ball_gaps, estimated_possessions, 0.06),
+        "whistle_rate": rate(whistle_events, estimated_possessions, 0.34),
+        "possession_change_rate": rate(possession_change_markers, estimated_possessions, 2.03),
+        "accelerating_late": 1.0 if tempo_flags.get("accelerating_late") else 0.0,
+        "slowing_late": 1.0 if tempo_flags.get("slowing_late") else 0.0,
     }
 
 
@@ -785,7 +799,7 @@ def load_game_pbp_features(data_root: str, game_id: str):
     away_live = live_state.get("teams", {}).get(away_tid)
     if not home_live or not away_live:
         return {}
-    return build_live_pbp_feature_dict(home_live, away_live)
+    return build_live_pbp_feature_dict(home_live, away_live, live_state.get("game", {}))
 
 
 def compute_calibration_adjustment(
@@ -865,7 +879,7 @@ def synthesize_game(
     home_avg_allowed = home_base.get("score_against", {}).get("mean", 70)
     away_avg_scored = away_base.get("score_for", {}).get("mean", 70)
     away_avg_allowed = away_base.get("score_against", {}).get("mean", 70)
-    pbp_features = build_live_pbp_feature_dict(home_live, away_live)
+    pbp_features = build_live_pbp_feature_dict(home_live, away_live, game_meta)
     features, feature_dict = build_feature_vector(
         run_date,
         pace_profile,

@@ -1,7 +1,7 @@
 {
   "total_prediction_strategy": "derived_2h",
-  "direct_total_mae": 10.890817307692307,
-  "derived_total_mae": 10.778221153846154,
+  "direct_total_mae": 10.947788461538462,
+  "derived_total_mae": 10.538942307692308,
   "feature_names": [
     "home_lead",
     "abs_home_lead",
@@ -40,6 +40,13 @@
     "home_live_ball_turnover_share",
     "away_live_ball_turnover_share",
     "home_orb_rate",
-    "away_orb_rate"
+    "away_orb_rate",
+    "possessions_per_team_1h",
+    "dead_ball_rate",
+    "long_gap_rate",
+    "whistle_rate",
+    "possession_change_rate",
+    "accelerating_late",
+    "slowing_late"
   ]
 }

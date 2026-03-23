@@ -45,6 +45,13 @@ FEATURE_NAMES = [
     'away_live_ball_turnover_share',
     'home_orb_rate',
     'away_orb_rate',
+    'possessions_per_team_1h',
+    'dead_ball_rate',
+    'long_gap_rate',
+    'whistle_rate',
+    'possession_change_rate',
+    'accelerating_late',
+    'slowing_late',
 ]
 
 
@@ -61,6 +68,13 @@ DEFAULT_PBP_FEATURES = {
     'away_live_ball_turnover_share': 0.40,
     'home_orb_rate': 0.28,
     'away_orb_rate': 0.28,
+    'possessions_per_team_1h': 39.3,
+    'dead_ball_rate': 2.2,
+    'long_gap_rate': 0.06,
+    'whistle_rate': 0.34,
+    'possession_change_rate': 2.03,
+    'accelerating_late': 0.0,
+    'slowing_late': 0.0,
 }
 
 
@@ -223,6 +237,13 @@ def build_feature_dict(
         'away_live_ball_turnover_share': pbp_values['away_live_ball_turnover_share'],
         'home_orb_rate': pbp_values['home_orb_rate'],
         'away_orb_rate': pbp_values['away_orb_rate'],
+        'possessions_per_team_1h': pbp_values['possessions_per_team_1h'],
+        'dead_ball_rate': pbp_values['dead_ball_rate'],
+        'long_gap_rate': pbp_values['long_gap_rate'],
+        'whistle_rate': pbp_values['whistle_rate'],
+        'possession_change_rate': pbp_values['possession_change_rate'],
+        'accelerating_late': pbp_values['accelerating_late'],
+        'slowing_late': pbp_values['slowing_late'],
     }
 
 
