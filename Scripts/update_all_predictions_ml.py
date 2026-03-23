@@ -1,30 +1,10 @@
 from openpyxl import load_workbook
 from pathlib import Path
-import statistics
-from datetime import datetime
-from sklearn.ensemble import RandomForestRegressor
 import pickle
 import json
 
-def load_team_stats(date_str):
-    path = Path('data/processed/baselines') / f'last4_{date_str}.json'
-    if not path.exists():
-        return {}
-    with open(path, 'r') as f:
-        data = json.load(f)
-    teams = data.get('teams', {})
-    stats = {}
-    for team, games in teams.items():
-        if not games:
-            continue
-        scores_for = [int(g['score_for']) for g in games if g['score_for']]
-        scores_against = [int(g['score_against']) for g in games if g['score_against']]
-        if scores_for:
-            stats[team] = {
-                'avg_scored': statistics.mean(scores_for),
-                'avg_allowed': statistics.mean(scores_against)
-            }
-    return stats
+from model_feature_utils import build_feature_vector, load_team_stats, parse_halftime_score, resolve_team_stats
+from step4b_feature_report_from_file_v5_test import load_game_pbp_features
 
 # Load models
 models_dir = Path('models')
@@ -47,6 +27,12 @@ if error_stats_path.exists():
 else:
     print(f"Warning: {error_stats_path} not found; using defaults")
 
+strategy_path = models_dir / 'model_strategy.json'
+model_strategy = {'total_prediction_strategy': 'direct_model'}
+if strategy_path.exists():
+    with open(strategy_path, 'r', encoding='utf-8') as f:
+        model_strategy = json.load(f)
+
 # Load workbook
 path = Path('logs/NCAAM Results.xlsx')
 if not path.exists():
@@ -54,6 +40,11 @@ if not path.exists():
 
 wb = load_workbook(path)
 ws = wb['Game_Log']
+
+if ws['S1'].value in (None, ''):
+    ws['S1'] = 'Pred2HRange_Narrow'
+if ws['T1'].value in (None, ''):
+    ws['T1'] = 'PredTotalRange_Narrow'
 
 # Load team stats for all dates
 rows = list(ws.iter_rows(values_only=True))
@@ -68,6 +59,9 @@ for row in rows[1:]:
         if date_str not in team_stats_cache:
             team_stats_cache[date_str] = load_team_stats(date_str)
 
+pbp_feature_cache = {}
+data_root = str(Path(__file__).resolve().parent.parent / 'data')
+
 # Update predictions
 updated = 0
 for i, row in enumerate(rows[1:], start=2):  # start=2 for 1-based row
@@ -76,73 +70,54 @@ for i, row in enumerate(rows[1:], start=2):  # start=2 for 1-based row
     pace = row[data_indices.get('PaceProfile')]
     home_team = row[data_indices.get('Home')]
     away_team = row[data_indices.get('Away')]
+    game_id = row[data_indices.get('GameID')] if data_indices.get('GameID') is not None else None
 
     if not halftime_score or not date or not home_team or not away_team:
         continue
 
-    # Parse halftime lead
-    if '-' not in str(halftime_score):
+    away_ht, home_ht, home_lead, halftime_total = parse_halftime_score(halftime_score)
+    if home_lead is None:
         continue
-    parts = str(halftime_score).split('-')
-    try:
-        away_ht = float(parts[0])
-        home_ht = float(parts[1])
-        home_lead = home_ht - away_ht
-    except:
-        continue
-
-    # Pace
-    pace_run_and_gun = 1 if str(pace).lower() == 'run_and_gun' else 0
-
-    # Date days
-    try:
-        d = datetime.strptime(str(date).split(' ')[0], '%Y-%m-%d')
-        start = datetime(2026, 1, 1)
-        date_days = (d - start).days
-    except:
-        date_days = 0
 
     # Team stats
     date_str = str(date).split(' ')[0]
     stats = team_stats_cache.get(date_str, {})
-    home_stats = stats.get(home_team, {})
-    away_stats = stats.get(away_team, {})
-    home_avg_scored = home_stats.get('avg_scored', 70)
-    home_avg_allowed = home_stats.get('avg_allowed', 70)
-    away_avg_scored = away_stats.get('avg_scored', 70)
-    away_avg_allowed = away_stats.get('avg_allowed', 70)
+    home_avg_scored, home_avg_allowed = resolve_team_stats(stats, home_team)
+    away_avg_scored, away_avg_allowed = resolve_team_stats(stats, away_team)
+    pbp_features = {}
+    if game_id not in (None, ''):
+        game_id_key = str(game_id).strip()
+        if game_id_key not in pbp_feature_cache:
+            pbp_feature_cache[game_id_key] = load_game_pbp_features(data_root, game_id_key)
+        pbp_features = pbp_feature_cache.get(game_id_key, {})
+    features, feature_dict = build_feature_vector(
+        date_str,
+        pace,
+        home_ht,
+        away_ht,
+        home_avg_scored,
+        home_avg_allowed,
+        away_avg_scored,
+        away_avg_allowed,
+        pbp_features,
+    )
 
-    # Derived features (same as training)
-    halftime_total = None
-    if '-' in str(halftime_score):
-        parts = str(halftime_score).split('-')
-        try:
-            halftime_total = float(parts[0]) + float(parts[1])
-        except:
-            halftime_total = None
-
-    home_offense_diff = home_avg_scored - away_avg_allowed
-    away_offense_diff = away_avg_scored - home_avg_allowed
-
-    # 1H efficiency
-    home_eff_ppp = 0
-    away_eff_ppp = 0
-    if halftime_total and halftime_total > 0:
-        home_eff_ppp = home_ht / halftime_total
-        away_eff_ppp = away_ht / halftime_total
-
-    features = [
-        home_lead, pace_run_and_gun, date_days,
-        home_avg_scored, home_avg_allowed, away_avg_scored, away_avg_allowed,
-        halftime_total if halftime_total is not None else 0,
-        home_offense_diff, away_offense_diff,
-        home_eff_ppp, away_eff_ppp
-    ]
+    def predict_target(model_key):
+        model = models.get(model_key)
+        if model is None:
+            return None
+        expected_features = getattr(model, 'n_features_in_', len(features))
+        model_features = features[:expected_features]
+        return model.predict([model_features])[0]
 
     # Predict
-    pred_margin = models['ActualMargin'].predict([features])[0] if models['ActualMargin'] else None
-    pred_2h    = models['Actual2H'].predict([features])[0] if models['Actual2H'] else None
-    pred_total = models['ActualTotal'].predict([features])[0] if models['ActualTotal'] else None
+    pred_margin = predict_target('ActualMargin')
+    pred_2h = predict_target('Actual2H')
+    direct_pred_total = predict_target('ActualTotal')
+    if model_strategy.get('total_prediction_strategy') == 'derived_2h' and pred_2h is not None:
+        pred_total = feature_dict['halftime_total'] + pred_2h
+    else:
+        pred_total = direct_pred_total
 
     # Convert to whole number predictions
     if pred_margin is not None:
@@ -151,6 +126,35 @@ for i, row in enumerate(rows[1:], start=2):  # start=2 for 1-based row
         pred_2h = int(round(pred_2h))
     if pred_total is not None:
         pred_total = int(round(pred_total))
+
+    # Line deviation (if you add FD lines to inputs)
+    book_2h_val = None
+    for nm in ['FD2H', 'FanDuel2H', 'Book2H', 'HalfTotalLine']:
+        if nm in data_indices and row[data_indices.get(nm)] is not None:
+            try:
+                book_2h_val = float(row[data_indices.get(nm)])
+                break
+            except:
+                book_2h_val = None
+    book_total_val = None
+    for nm in ['FDTotal', 'FanDuelTotal', 'BookTotal', 'FullTotalLine', 'TotalLine']:
+        if nm in data_indices and row[data_indices.get(nm)] is not None:
+            try:
+                book_total_val = float(row[data_indices.get(nm)])
+                break
+            except:
+                book_total_val = None
+
+    line_dev_2h = None
+    line_dev_total = None
+    if pred_2h is not None and book_2h_val is not None:
+        line_dev_2h = pred_2h - book_2h_val
+    if pred_total is not None and book_total_val is not None:
+        line_dev_total = pred_total - book_total_val
+
+    # Print for debug in live rows
+    if line_dev_2h is not None or line_dev_total is not None:
+        print(f"Game {row[data_indices.get('GameID')]}: line_dev_2h={line_dev_2h}, line_dev_total={line_dev_total}")
 
     if pred_margin is None:
         continue
@@ -181,8 +185,7 @@ for i, row in enumerate(rows[1:], start=2):  # start=2 for 1-based row
         low = max(0, pred_2h - range_half_width)
         high = pred_2h + range_half_width
         ws[f"I{i}"] = f"{low}-{high}"
-        # also store narrow 2H range in next column if desired
-        ws[f"L{i}"] = f"{max(0,pred_2h-narrow_half)}-{pred_2h+narrow_half}"
+        ws[f"S{i}"] = f"{max(0, pred_2h - narrow_half)}-{pred_2h + narrow_half}"
 
     # Total range (integers) - dynamic width
     if pred_total is not None:
@@ -192,7 +195,7 @@ for i, row in enumerate(rows[1:], start=2):  # start=2 for 1-based row
         low = max(0, pred_total - range_half_width)
         high = pred_total + range_half_width
         ws[f"J{i}"] = f"{low}-{high}"
-        ws[f"M{i}"] = f"{max(0,pred_total-narrow_half)}-{pred_total+narrow_half}"
+        ws[f"T{i}"] = f"{max(0, pred_total - narrow_half)}-{pred_total + narrow_half}"
 
     updated += 1
     if updated % 100 == 0:

@@ -9,7 +9,20 @@ from statistics import mean
 import pickle
 from pathlib import Path
 
+from model_feature_utils import build_feature_vector
+
 DEFAULT_DATA_ROOT = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
+
+
+def load_model_error_stats():
+    stats_path = Path(__file__).parent.parent / 'models' / 'model_error_stats.json'
+    if not stats_path.exists():
+        return {}
+    try:
+        with open(stats_path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception:
+        return {}
 
 def load_prediction_models():
     models_dir = Path(__file__).parent.parent / 'models'
@@ -23,6 +36,17 @@ def load_prediction_models():
             print(f"Warning: Model {model_path} not found")
             models[target] = None
     return models
+
+
+def load_model_strategy():
+    strategy_path = Path(__file__).parent.parent / 'models' / 'model_strategy.json'
+    if not strategy_path.exists():
+        return {'total_prediction_strategy': 'direct_model'}
+    try:
+        with open(strategy_path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception:
+        return {'total_prediction_strategy': 'direct_model'}
 
 SEGMENTS = [
     (20 * 60, 16 * 60, "20:00-16:00"),
@@ -94,6 +118,44 @@ def normalize_name(fn, ln):
 
 def normalize_desc(desc):
     return re.sub(r"\s+", " ", (desc or "").strip())
+
+
+def compact_desc(desc):
+    normalized = normalize_desc(desc).lower()
+    normalized = normalized.replace("jumpshot", "jump shot")
+    return re.sub(r"[^a-z0-9]", "", normalized)
+
+
+def should_merge_duplicate_play(previous_play, current_play):
+    if not isinstance(previous_play, dict) or not isinstance(current_play, dict):
+        return False
+    same_frame = (
+        previous_play.get("teamId") == current_play.get("teamId") and
+        previous_play.get("isHome") == current_play.get("isHome") and
+        previous_play.get("clock") == current_play.get("clock") and
+        previous_play.get("homeScore") == current_play.get("homeScore") and
+        previous_play.get("visitorScore") == current_play.get("visitorScore")
+    )
+    if not same_frame:
+        return False
+    prev_compact = compact_desc(previous_play.get("eventDescription") or "")
+    curr_compact = compact_desc(current_play.get("eventDescription") or "")
+    if not prev_compact or not curr_compact:
+        return False
+    return prev_compact in curr_compact or curr_compact in prev_compact
+
+
+def dedupe_first_half_plays(plays):
+    deduped = []
+    for play in plays or []:
+        if not isinstance(play, dict):
+            continue
+        if deduped and should_merge_duplicate_play(deduped[-1], play):
+            if len(normalize_desc(play.get("eventDescription") or "")) >= len(normalize_desc(deduped[-1].get("eventDescription") or "")):
+                deduped[-1] = play
+            continue
+        deduped.append(play)
+    return deduped
 
 
 def latest_halftime_file(data_root: str, game_id: str):
@@ -204,12 +266,12 @@ def classify_shot(desc: str):
     d = desc.lower()
     if "free throw" in d:
         return None
-    is_make = "missed" not in d
+    is_make = "missed" not in d and "misses" not in d
     if "3 pointer" in d or "three point" in d:
         return {"event": "3_make" if is_make else "3_miss", "zone": "three", "assisted": "assist" in d}
     if any(x in d for x in ["layup", "dunk", "slam dunk", "tip in", "tip-in", "putback", "hook shot"]):
         return {"event": "2_make" if is_make else "2_miss", "zone": "paint", "assisted": "assist" in d}
-    if any(x in d for x in ["jumper", "jump shot", "fadeaway", "pullup", "pull-up"]):
+    if any(x in d for x in ["jumper", "jump shot", "jumpshot", "fadeaway", "pullup", "pull-up"]):
         return {"event": "2_make" if is_make else "2_miss", "zone": "jumper", "assisted": "assist" in d}
     if "2 pointer" in d:
         return {"event": "2_make" if is_make else "2_miss", "zone": "two_generic", "assisted": "assist" in d}
@@ -218,12 +280,12 @@ def classify_shot(desc: str):
 
 def points_from_desc(desc: str):
     d = desc.lower()
-    if "made free throw" in d or ("free throw" in d and "missed" not in d):
+    if "made free throw" in d or ("free throw" in d and "missed" not in d and "misses" not in d):
         return 1
     if "3 pointer" in d or "three point" in d:
-        return 0 if "missed" in d else 3
-    if any(x in d for x in ["layup", "dunk", "jumper", "jump shot", "fadeaway", "2 pointer", "tip in", "tip-in", "putback", "hook shot"]):
-        return 0 if "missed" in d else 2
+        return 0 if "missed" in d or "misses" in d else 3
+    if any(x in d for x in ["layup", "dunk", "jumper", "jump shot", "jumpshot", "fadeaway", "2 pointer", "tip in", "tip-in", "putback", "hook shot"]):
+        return 0 if "missed" in d or "misses" in d else 2
     return 0
 
 
@@ -535,7 +597,7 @@ def baseline_aggregate(data_root: str, team_seo: str, game_ids):
         if not os.path.exists(fp):
             continue
         payload = load_json(fp)
-        plays = extract_first_half_plays_from_baseline_payload(payload)
+        plays = dedupe_first_half_plays(extract_first_half_plays_from_baseline_payload(payload))
         tid = team_id_from_payload(payload, team_seo)
         if not plays or tid is None:
             continue
@@ -675,6 +737,57 @@ def build_scoring_concentration_summary(home_stats: dict, away_stats: dict):
     }
 
 
+def build_live_pbp_feature_dict(home_stats: dict, away_stats: dict):
+    def rate(numerator, denominator, default):
+        if denominator in (None, 0):
+            return default
+        return round(float(numerator or 0) / float(denominator), 4)
+
+    home_fga = float(home_stats.get("FGA", 0) or 0)
+    away_fga = float(away_stats.get("FGA", 0) or 0)
+    home_poss = float(home_stats.get("poss_est", 0) or 0)
+    away_poss = float(away_stats.get("poss_est", 0) or 0)
+    home_orb_chances = float((home_stats.get("ORB", 0) or 0) + (away_stats.get("DRB", 0) or 0))
+    away_orb_chances = float((away_stats.get("ORB", 0) or 0) + (home_stats.get("DRB", 0) or 0))
+
+    return {
+        "home_three_rate": rate(home_stats.get("3PA", 0), home_fga, 0.33),
+        "away_three_rate": rate(away_stats.get("3PA", 0), away_fga, 0.33),
+        "home_paint_share": rate(home_stats.get("paint_FGA", 0), home_fga, 0.4),
+        "away_paint_share": rate(away_stats.get("paint_FGA", 0), away_fga, 0.4),
+        "home_ft_rate": rate(home_stats.get("FTA", 0), home_fga, 0.25),
+        "away_ft_rate": rate(away_stats.get("FTA", 0), away_fga, 0.25),
+        "home_turnover_rate": rate(home_stats.get("TO", 0), home_poss, 0.18),
+        "away_turnover_rate": rate(away_stats.get("TO", 0), away_poss, 0.18),
+        "home_live_ball_turnover_share": rate(home_stats.get("TO_live", 0), home_stats.get("TO", 0), 0.4),
+        "away_live_ball_turnover_share": rate(away_stats.get("TO_live", 0), away_stats.get("TO", 0), 0.4),
+        "home_orb_rate": rate(home_stats.get("ORB", 0), home_orb_chances, 0.28),
+        "away_orb_rate": rate(away_stats.get("ORB", 0), away_orb_chances, 0.28),
+    }
+
+
+def load_game_pbp_features(data_root: str, game_id: str):
+    halftime_path = latest_halftime_file(data_root, game_id)
+    if halftime_path is None:
+        return {}
+    try:
+        halftime = load_json(halftime_path)
+    except Exception:
+        return {}
+    plays = dedupe_first_half_plays(halftime.get("first_half_plays", []))
+    if not plays:
+        return {}
+    home_tid, away_tid = infer_home_away_team_ids(plays)
+    if home_tid is None or away_tid is None:
+        return {}
+    live_state = compute_live_game_state(plays, home_tid, away_tid)
+    home_live = live_state.get("teams", {}).get(home_tid)
+    away_live = live_state.get("teams", {}).get(away_tid)
+    if not home_live or not away_live:
+        return {}
+    return build_live_pbp_feature_dict(home_live, away_live)
+
+
 def compute_calibration_adjustment(
     home_ht: int,
     away_ht: int,
@@ -742,41 +855,52 @@ def synthesize_game(
     foul_pressure: dict,
     scoring_concentration: dict,
     prediction_models: dict,
+    model_error_stats: dict,
+    model_strategy: dict,
     run_date: str,
 ):
     margin = (home_ht or 0) - (away_ht or 0)
-    range_half_width = 5
-    # Compute features for ML models
-    home_lead = margin
     pace_profile = game_meta.get("pace_profile", "")
-    pace_run_and_gun = 1 if pace_profile.lower() == 'run_and_gun' else 0
-
-    # date_days
-    try:
-        d = datetime.strptime(run_date, '%Y-%m-%d')
-        start = datetime(2026, 1, 1)
-        date_days = (d - start).days
-    except:
-        date_days = 0
-
-    # team stats
     home_avg_scored = home_base.get("score_for", {}).get("mean", 70)
     home_avg_allowed = home_base.get("score_against", {}).get("mean", 70)
     away_avg_scored = away_base.get("score_for", {}).get("mean", 70)
     away_avg_allowed = away_base.get("score_against", {}).get("mean", 70)
+    pbp_features = build_live_pbp_feature_dict(home_live, away_live)
+    features, feature_dict = build_feature_vector(
+        run_date,
+        pace_profile,
+        home_ht,
+        away_ht,
+        home_avg_scored,
+        home_avg_allowed,
+        away_avg_scored,
+        away_avg_allowed,
+        pbp_features,
+    )
 
-    features = [home_lead, pace_run_and_gun, date_days, home_avg_scored, home_avg_allowed, away_avg_scored, away_avg_allowed]
+    def predict_target(model_key: str):
+        model = prediction_models.get(model_key)
+        if model is None:
+            return None
+        expected_features = getattr(model, 'n_features_in_', len(features))
+        model_features = features[:expected_features]
+        return model.predict([model_features])[0]
 
     # Predict
-    pred_margin = None
-    pred_2h = None
-    pred_total = None
-    if prediction_models.get('ActualMargin'):
-        pred_margin = prediction_models['ActualMargin'].predict([features])[0]
-    if prediction_models.get('Actual2H'):
-        pred_2h = prediction_models['Actual2H'].predict([features])[0]
-    if prediction_models.get('ActualTotal'):
-        pred_total = prediction_models['ActualTotal'].predict([features])[0]
+    pred_margin = predict_target('ActualMargin')
+    pred_2h = predict_target('Actual2H')
+    direct_pred_total = predict_target('ActualTotal')
+    if model_strategy.get('total_prediction_strategy') == 'derived_2h' and pred_2h is not None:
+        pred_total = feature_dict['halftime_total'] + pred_2h
+    else:
+        pred_total = direct_pred_total
+
+    if pred_margin is not None:
+        pred_margin = int(round(pred_margin))
+    if pred_2h is not None:
+        pred_2h = int(round(pred_2h))
+    if pred_total is not None:
+        pred_total = int(round(pred_total))
 
     # Use predictions
     winner = home_seo if pred_margin > 0 else away_seo
@@ -790,19 +914,6 @@ def synthesize_game(
     else:
         margin_range = "1-5"
         confidence = "LOW-MEDIUM"
-
-    if foul_pressure.get("strong_foul_escalation", False):
-        range_half_width += 1
-
-    conc_env = scoring_concentration.get("scoring_concentration_environment", "balanced")
-    if conc_env == "both_concentrated":
-        range_half_width += 1
-
-    if margin == 0:
-        range_half_width += 1
-
-    if pace_profile == "moderate":
-        range_half_width += 1
 
     # For 2H and total
     if pred_2h is not None:
@@ -821,7 +932,17 @@ def synthesize_game(
     else:
         final_total_mid = (home_ht or 0) + (away_ht or 0) + calibrated_expected_2h
 
-    total_range = f"{final_total_mid - (range_half_width + 1)}-{final_total_mid + (range_half_width + 1)}"
+    err_2h = model_error_stats.get('Actual2H', 10.33)
+    err_total = model_error_stats.get('ActualTotal', 10.33)
+    range_half_width_2h = max(2, min(5, int(round(err_2h * 0.6))))
+    narrow_half_width_2h = max(1, int(round(err_2h * 0.35)))
+    range_half_width_total = max(3, min(7, int(round(err_total * 0.6))))
+    narrow_half_width_total = max(2, int(round(err_total * 0.4)))
+
+    second_half_range = f"{max(0, calibrated_expected_2h - narrow_half_width_2h)}-{calibrated_expected_2h + narrow_half_width_2h}"
+    second_half_wide_range = f"{max(0, calibrated_expected_2h - range_half_width_2h)}-{calibrated_expected_2h + range_half_width_2h}"
+    total_range = f"{max(0, final_total_mid - narrow_half_width_total)}-{final_total_mid + narrow_half_width_total}"
+    total_wide_range = f"{max(0, final_total_mid - range_half_width_total)}-{final_total_mid + range_half_width_total}"
 
     reasons = ["ML-based prediction using halftime score, pace, date, and team strength metrics."]
 
@@ -835,12 +956,14 @@ def synthesize_game(
             "raw_mid": raw_expected_2h,
             "calibration_adjustment": calibration_adjustment,
             "mid": calibrated_expected_2h,
-            "range": f"{calibrated_expected_2h - range_half_width}-{calibrated_expected_2h + range_half_width}",
+            "range": second_half_range,
+            "wide_range": second_half_wide_range,
             "variance": variance,
         },
         "full_game_total_projection": {
             "mid": final_total_mid,
             "range": total_range,
+            "wide_range": total_wide_range,
             "lean": "OVER" if calibrated_expected_2h >= 70 else "UNDER" if calibrated_expected_2h <= 64 else "NO STRONG LEAN",
         },
         "confidence": confidence,
@@ -868,7 +991,7 @@ def main():
         return
 
     halftime = load_json(halftime_path)
-    plays = halftime.get("first_half_plays", [])
+    plays = dedupe_first_half_plays(halftime.get("first_half_plays", []))
     if not plays:
         print(f"Halftime file exists but first_half_plays is empty: {halftime_path}")
         return
@@ -893,6 +1016,8 @@ def main():
     
     # Load prediction models
     prediction_models = load_prediction_models()
+    model_error_stats = load_model_error_stats()
+    model_strategy = load_model_strategy()
     selected_path = args.selected_games or os.path.join(
         data_root, "processed", "selected_games", f"selected_games_{run_date}.json"
     )
@@ -971,6 +1096,8 @@ def main():
         foul_pressure,
         scoring_concentration,
         prediction_models,
+        model_error_stats,
+        model_strategy,
         run_date,
     )
 
@@ -982,7 +1109,6 @@ def main():
     print(f"\nSaved report -> {out_path}")
     print(f"Halftime: {home_seo} {home_ht} - {away_seo} {away_ht}")
     print(f"Pace profile: {report['game_state'].get('pace_profile')}")
-    print(f"Foul pressure: {report['foul_pressure']}")
     print(f"Scoring concentration: {report['scoring_concentration']}")
     print(f"Projected winner: {report['projection']['winner_projection']} by {report['projection']['winner_margin_range']}")
     print(f"2H points: {report['projection']['second_half_points_projection']['range']}")

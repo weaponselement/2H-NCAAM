@@ -62,6 +62,19 @@ for i, r in enumerate(data[:5], 1):
     o = {k: r.get(k) for k in headers[:12]}
     print(i, o)
 
+
+def parse_score(text):
+    if text is None:
+        return None
+    s = str(text).strip()
+    if '-' not in s:
+        return None
+    try:
+        left, right = s.split('-', 1)
+        return float(left.strip()), float(right.strip())
+    except Exception:
+        return None
+
 # If we can compare margins or totals
 # find columns for predictions and actual if numeric
 def first_numeric(col):
@@ -88,16 +101,33 @@ if 'WinnerCorrect' in headers:
     total = len(wins)
     print(f'WinnerCorrect count: {correct}/{total} ({(correct/total*100) if total else 0:.1f}%)')
 
+recomputed_winner_total = 0
+recomputed_winner_correct = 0
+if 'PredWinner' in headers and 'ActualWinner' in headers:
+    for r in data:
+        pred = r.get('PredWinner')
+        actual_name = r.get('ActualWinner')
+        if pred in (None, '') or actual_name in (None, ''):
+            continue
+        # Skip rows where ActualWinner is actually a score string from a corrupted workbook state.
+        if parse_score(actual_name) is not None:
+            continue
+        recomputed_winner_total += 1
+        if str(pred).strip().lower() == str(actual_name).strip().lower():
+            recomputed_winner_correct += 1
+    if recomputed_winner_total:
+        print(f'Recomputed winner accuracy: {recomputed_winner_correct}/{recomputed_winner_total} ({recomputed_winner_correct/recomputed_winner_total*100:.1f}%)')
+
 # compute numeric errors if possible
-# use ActualMargin, Total_Error, TwoH_Error if present
-for col in ['ActualMargin', 'Total_Error', 'TwoH_Error']:
+# use Total_Error, TwoH_Error if present
+for col in ['Total_Error', 'TwoH_Error']:
     if col in headers:
         vals = [r.get(col) for r in data if isinstance(r.get(col), (int, float))]
         if vals:
             import statistics
             print(f'{col}: mean {statistics.mean(vals):.2f}, median {statistics.median(vals):.2f}, std {statistics.stdev(vals):.2f}, max {max(vals):.2f}')
 
-# parse PredMargin ranges to compare with ActualMargin
+# parse PredMargin ranges to compare with ActualMargin when ActualMargin is numeric
 if 'PredMargin' in headers and 'ActualMargin' in headers:
     margin_diff = []
     for r in data:

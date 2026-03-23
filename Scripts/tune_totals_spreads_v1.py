@@ -1,32 +1,14 @@
-from openpyxl import load_workbook
-from pathlib import Path
-import statistics
 from datetime import datetime
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.metrics import mean_absolute_error
-import numpy as np
+from pathlib import Path
 import json
 import pickle
 
-def load_team_stats(date_str):
-    path = Path('data/processed/baselines') / f'last4_{date_str}.json'
-    if not path.exists():
-        return {}
-    with open(path, 'r') as f:
-        data = json.load(f)
-    teams = data.get('teams', {})
-    stats = {}
-    for team, games in teams.items():
-        if not games:
-            continue
-        scores_for = [int(g['score_for']) for g in games if g['score_for']]
-        scores_against = [int(g['score_against']) for g in games if g['score_against']]
-        if scores_for:
-            stats[team] = {
-                'avg_scored': statistics.mean(scores_for),
-                'avg_allowed': statistics.mean(scores_against)
-            }
-    return stats
+from openpyxl import load_workbook
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import mean_absolute_error
+
+from model_feature_utils import FEATURE_NAMES, build_feature_vector, load_team_stats, parse_halftime_score, resolve_team_stats
+from step4b_feature_report_from_file_v5_test import load_game_pbp_features
 
 path = Path('logs/NCAAM Results.xlsx')
 if not path.exists():
@@ -39,91 +21,82 @@ if 'Game_Log' not in wb.sheetnames:
 ws = wb['Game_Log']
 rows = list(ws.iter_rows(values_only=True))
 headers = [str(c) if c is not None else '' for c in rows[0]]
-data = [dict(zip(headers, r)) for r in rows[1:]]
+data = [dict(zip(headers, r)) for r in rows[1:] if any(v is not None for v in r)]
 
 # Load team stats for all dates
-dates = set(r.get('Date') for r in data if r.get('Date'))
+dates = set(str(r.get('Date')).split(' ')[0] for r in data if r.get('Date'))
 team_stats_cache = {}
 for d in dates:
     team_stats_cache[d] = load_team_stats(d)
+
+pbp_feature_cache = {}
+data_root = str(Path(__file__).resolve().parent.parent / 'data')
 
 print('loaded team stats for', len(dates), 'dates')
 
 print('loaded', len(data), 'rows')
 
-# Parse halftime score to home_lead
-def parse_halftime_score(hs):
-    if not hs or '-' not in str(hs):
-        return None
-    parts = str(hs).split('-')
+
+def safe_float(value):
     try:
-        away = float(parts[0])
-        home = float(parts[1])
-        return home - away  # positive if home leading
-    except:
+        return float(value)
+    except Exception:
         return None
 
 # Add features
 for r in data:
-    r['home_lead'] = parse_halftime_score(r.get('HalftimeScore'))
-    r['pace_run_and_gun'] = 1 if str(r.get('PaceProfile')).lower() == 'run_and_gun' else 0
-    # Extract halftime home/away scores
-    halftime_score = r.get('HalftimeScore')
-    r['halftime_home'] = None
-    r['halftime_away'] = None
-    if halftime_score and '-' in str(halftime_score):
-        parts = str(halftime_score).split('-')
-        try:
-            r['halftime_away'] = float(parts[0])
-            r['halftime_home'] = float(parts[1])
-        except:
-            r['halftime_away'] = None
-            r['halftime_home'] = None
-    # Add date feature: days since 2026-01-01
-    try:
-        d = datetime.strptime(str(r.get('Date')), '%Y-%m-%d')
-        start = datetime(2026, 1, 1)
-        r['date_days'] = (d - start).days
-    except:
-        r['date_days'] = 0
-    # Add team stats
-    date = r.get('Date')
+    away_ht, home_ht, home_lead, halftime_total = parse_halftime_score(r.get('HalftimeScore'))
+    r['halftime_away'] = away_ht
+    r['halftime_home'] = home_ht
+    r['home_lead'] = home_lead
+    r['halftime_total'] = halftime_total
+    date = str(r.get('Date')).split(' ')[0] if r.get('Date') else ''
     home_team = r.get('Home')
     away_team = r.get('Away')
+    game_id = r.get('GameID')
     stats = team_stats_cache.get(date, {})
-    home_stats = stats.get(home_team, {})
-    away_stats = stats.get(away_team, {})
-    r['home_avg_scored'] = home_stats.get('avg_scored', 70)  # default
-    r['home_avg_allowed'] = home_stats.get('avg_allowed', 70)
-    r['away_avg_scored'] = away_stats.get('avg_scored', 70)
-    r['away_avg_allowed'] = away_stats.get('avg_allowed', 70)
-
-    # New derived features (top 2 selected enhancements)
-    halftime_score = r.get('HalftimeScore')
-    if halftime_score and '-' in str(halftime_score):
-        parts = str(halftime_score).split('-')
-        try:
-            r['halftime_total'] = float(parts[0]) + float(parts[1])
-        except:
-            r['halftime_total'] = None
+    home_avg_scored, home_avg_allowed = resolve_team_stats(stats, home_team)
+    away_avg_scored, away_avg_allowed = resolve_team_stats(stats, away_team)
+    r['home_avg_scored'] = home_avg_scored
+    r['home_avg_allowed'] = home_avg_allowed
+    r['away_avg_scored'] = away_avg_scored
+    r['away_avg_allowed'] = away_avg_allowed
+    pbp_features = {}
+    if game_id not in (None, ''):
+        game_id_key = str(game_id).strip()
+        if game_id_key not in pbp_feature_cache:
+            pbp_feature_cache[game_id_key] = load_game_pbp_features(data_root, game_id_key)
+        pbp_features = pbp_feature_cache.get(game_id_key, {})
+    r['pbp_features'] = pbp_features
+    if home_ht is not None and away_ht is not None:
+        feature_vector, feature_dict = build_feature_vector(
+            date,
+            r.get('PaceProfile'),
+            home_ht,
+            away_ht,
+            home_avg_scored,
+            home_avg_allowed,
+            away_avg_scored,
+            away_avg_allowed,
+            pbp_features,
+        )
+        r.update(feature_dict)
+        r['model_features'] = feature_vector
     else:
-        r['halftime_total'] = None
+        r['model_features'] = None
 
-    r['home_offense_diff'] = r['home_avg_scored'] - r['away_avg_allowed']
-    r['away_offense_diff'] = r['away_avg_scored'] - r['home_avg_allowed']
-
-    # Home/away 1H scoring efficiency
-    if r.get('halftime_total') and r.get('halftime_total') != 0:
-        r['half_possessions'] = r['halftime_total']
-        r['home_eff_ppp'] = r['halftime_home'] / r['half_possessions'] if r.get('halftime_home') is not None else 0
-        r['away_eff_ppp'] = r['halftime_away'] / r['half_possessions'] if r.get('halftime_away') is not None else 0
-    else:
-        r['half_possessions'] = 0
-        r['home_eff_ppp'] = 0
-        r['away_eff_ppp'] = 0
+    r['ActualMargin'] = safe_float(r.get('ActualMargin'))
+    r['Actual2H'] = safe_float(r.get('Actual2H'))
+    r['ActualTotal'] = safe_float(r.get('ActualTotal'))
 
 # Filter valid rows
-valid = [r for r in data if r['home_lead'] is not None and r.get('ActualMargin') is not None and r.get('Actual2H') is not None and r.get('ActualTotal') is not None and r.get('date_days') is not None]
+valid = [
+    r for r in data
+    if r.get('model_features') is not None
+    and r.get('ActualMargin') is not None
+    and r.get('Actual2H') is not None
+    and r.get('ActualTotal') is not None
+]
 print('valid rows for tuning:', len(valid))
 
 # Split by date: train on dates before 2026-03-01, test after
@@ -142,134 +115,82 @@ for r in valid:
 
 print('train:', len(train), 'test:', len(test))
 
-# Multivariate linear model
-def train_linear(X, y):
-    # Simple linear regression: y = a*x + b
-    n = len(y)
-    sum_x = sum(X)
-    sum_y = sum(y)
-    sum_xy = sum(x * yy for x, yy in zip(X, y))
-    sum_xsq = sum(x**2 for x in X)
-    # a = (n*sum_xy - sum_x*sum_y) / (n*sum_xsq - sum_x**2)
-    # b = (sum_y - a*sum_x) / n
-    det = n * sum_xsq - sum_x**2
-    if det == 0:
-        return 0, sum_y / n
-    a = (n * sum_xy - sum_x * sum_y) / det
-    b = (sum_y * sum_xsq - sum_x * sum_xy) / det
-    return a, b
-
-def train_multilinear(X_list, y):
-    # X_list is list of lists, each inner list is features for one sample
-    # y is list of targets
-    X = np.array([[1] + row for row in X_list])  # add intercept
-    y_arr = np.array(y)
-    # Solve X^T X beta = X^T y
-    XT = X.T
-    beta = np.linalg.inv(XT @ X) @ (XT @ y_arr)
-    return beta  # coefficients including intercept
-
-# For now, use single feature, but add pace as additional
-def train_linear_multi(X1, X2, y):
-    # Simple: y = a*X1 + b*X2 + c
-    n = len(y)
-    sum_x1 = sum(X1)
-    sum_x2 = sum(X2)
-    sum_y = sum(y)
-    sum_x1y = sum(x*y for x,y in zip(X1,y))
-    sum_x2y = sum(x*y for x,y in zip(X2,y))
-    sum_x1x2 = sum(x1*x2 for x1,x2 in zip(X1,X2))
-    sum_x1sq = sum(x**2 for x in X1)
-    sum_x2sq = sum(x**2 for x in X2)
-    # Solve system
-    # a*sum_x1sq + b*sum_x1x2 = sum_x1y
-    # a*sum_x1x2 + b*sum_x2sq = sum_x2y
-    det = sum_x1sq * sum_x2sq - sum_x1x2**2
-    if det == 0:
-        return 0, 0, sum_y/n  # fallback
-    a = (sum_x1y * sum_x2sq - sum_x2y * sum_x1x2) / det
-    b = (sum_x2y * sum_x1sq - sum_x1y * sum_x1x2) / det
-    c = sum_y / n - a * sum_x1 / n - b * sum_x2 / n
-    return a, b, c
-
-def predict_linear_multi(a, b, c, X1, X2):
-    return [a * x1 + b * x2 + c for x1, x2 in zip(X1, X2)]
-
-# For each target
 targets = ['ActualMargin', 'Actual2H', 'ActualTotal']
 error_stats = {}
+test_predictions = {}
+direct_total_mae = None
+derived_total_mae = None
 for target in targets:
     print(f'\n--- {target} ---')
-    train_X = [[
-        r['home_lead'], r['pace_run_and_gun'], r['date_days'],
-        r['home_avg_scored'], r['home_avg_allowed'], r['away_avg_scored'], r['away_avg_allowed'],
-        r['halftime_total'], r['home_offense_diff'], r['away_offense_diff'],
-        r['home_eff_ppp'], r['away_eff_ppp']
-    ] for r in train]
+    train_X = [r['model_features'] for r in train]
     train_y = [r[target] for r in train]
-    test_X = [[
-        r['home_lead'], r['pace_run_and_gun'], r['date_days'],
-        r['home_avg_scored'], r['home_avg_allowed'], r['away_avg_scored'], r['away_avg_allowed'],
-        r['halftime_total'], r['home_offense_diff'], r['away_offense_diff'],
-        r['home_eff_ppp'], r['away_eff_ppp']
-    ] for r in test]
+    test_X = [r['model_features'] for r in test]
     test_y = [r[target] for r in test]
-    
-    # Train Random Forest
+
     model = RandomForestRegressor(n_estimators=100, random_state=42)
     model.fit(train_X, train_y)
-    
-    # Predict on test
     pred_y = model.predict(test_X)
-    
-    # MAE
     mae = mean_absolute_error(test_y, pred_y)
-    error_stats[target] = mae
+    test_predictions[target] = pred_y
     print(f'test MAE: {mae:.2f}')
-    
-    # Baseline
+
     if target == 'ActualMargin':
         baseline_mae = 7.13
     elif target in ['Actual2H', 'ActualTotal']:
         baseline_mae = 10.33
     print(f'baseline MAE: {baseline_mae:.2f}')
     print(f'improvement: {baseline_mae - mae:.2f}')
-    
-    # Feature importance
+
+    if target == 'ActualTotal':
+        direct_total_mae = mae
+    else:
+        error_stats[target] = mae
+
     importances = model.feature_importances_
-    features = [
-        'home_lead', 'pace_run_and_gun', 'date_days',
-        'home_avg_scored', 'home_avg_allowed', 'away_avg_scored', 'away_avg_allowed',
-        'halftime_total', 'home_offense_diff', 'away_offense_diff',
-        'home_eff_ppp', 'away_eff_ppp'
-    ]
-    for f, imp in zip(features, importances):
+    for f, imp in zip(FEATURE_NAMES, importances):
         print(f'  {f}: {imp:.3f}')
+
+if test and 'Actual2H' in test_predictions:
+    derived_total_predictions = [r['halftime_total'] + pred_2h for r, pred_2h in zip(test, test_predictions['Actual2H'])]
+    derived_total_mae = mean_absolute_error([r['ActualTotal'] for r in test], derived_total_predictions)
+    print(f'\nDerived total from 2H MAE: {derived_total_mae:.2f}')
+    print(f'Direct total model MAE: {direct_total_mae:.2f}')
+else:
+    derived_total_mae = direct_total_mae
+
+total_strategy = 'derived_2h' if derived_total_mae is not None and direct_total_mae is not None and derived_total_mae <= direct_total_mae else 'direct_model'
+chosen_total_mae = derived_total_mae if total_strategy == 'derived_2h' else direct_total_mae
+error_stats['ActualTotal'] = chosen_total_mae
+print(f'Chosen total strategy: {total_strategy} (MAE {chosen_total_mae:.2f})')
 
 # Persist error stats for prediction range logic
 error_path = Path('models') / 'model_error_stats.json'
-with open(error_path, 'w') as f:
+with open(error_path, 'w', encoding='utf-8') as f:
     json.dump(error_stats, f)
 print(f'Saved error stats to {error_path}')
+
+strategy_path = Path('models') / 'model_strategy.json'
+with open(strategy_path, 'w', encoding='utf-8') as f:
+    json.dump({
+        'total_prediction_strategy': total_strategy,
+        'direct_total_mae': direct_total_mae,
+        'derived_total_mae': derived_total_mae,
+        'feature_names': FEATURE_NAMES,
+    }, f, indent=2)
+print(f'Saved strategy metadata to {strategy_path}')
 
 # Train final models on all data
 print('\n--- Final Models on All Data ---')
 final_models = {}
 for target in targets:
     print(f'Training final {target} model...')
-    X_all = [[
-        r['home_lead'], r['pace_run_and_gun'], r['date_days'],
-        r['home_avg_scored'], r['home_avg_allowed'], r['away_avg_scored'], r['away_avg_allowed'],
-        r['halftime_total'], r['home_offense_diff'], r['away_offense_diff'],
-        r['home_eff_ppp'], r['away_eff_ppp']
-    ] for r in valid]
+    X_all = [r['model_features'] for r in valid]
     y_all = [r[target] for r in valid]
-    
+
     final_model = RandomForestRegressor(n_estimators=100, random_state=42)
     final_model.fit(X_all, y_all)
     final_models[target] = final_model
-    
-    # Save model
+
     model_path = Path('models') / f'{target.lower()}_model.pkl'
     model_path.parent.mkdir(exist_ok=True)
     with open(model_path, 'wb') as f:
