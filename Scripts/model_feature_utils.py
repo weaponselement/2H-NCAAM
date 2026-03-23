@@ -115,6 +115,32 @@ def date_to_days(date_value):
         return 0
 
 
+def halftime_total_bucket(halftime_total):
+    try:
+        total = float(halftime_total)
+    except Exception:
+        total = 0.0
+    if total <= 60:
+        return '<=60'
+    if total <= 70:
+        return '61-70'
+    if total <= 80:
+        return '71-80'
+    return '81+'
+
+
+def range_half_widths_for_halftime_total(halftime_total):
+    bucket = halftime_total_bucket(halftime_total)
+    policy = {
+        '<=60': {'narrow': 3, 'wide': 5},
+        '61-70': {'narrow': 5, 'wide': 7},
+        '71-80': {'narrow': 4, 'wide': 6},
+        '81+': {'narrow': 4, 'wide': 6},
+    }
+    widths = policy[bucket]
+    return bucket, widths['narrow'], widths['wide']
+
+
 def build_feature_dict(
     date_value,
     pace_profile,

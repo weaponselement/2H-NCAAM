@@ -3,7 +3,7 @@ from pathlib import Path
 import pickle
 import json
 
-from model_feature_utils import build_feature_vector, load_team_stats, parse_halftime_score, resolve_team_stats
+from model_feature_utils import build_feature_vector, load_team_stats, parse_halftime_score, range_half_widths_for_halftime_total, resolve_team_stats
 from step4b_feature_report_from_file_v5_test import load_game_pbp_features
 
 # Load models
@@ -179,9 +179,7 @@ for i, row in enumerate(rows[1:], start=2):  # start=2 for 1-based row
 
     # 2H range (integers) - dynamic width from model error, plus narrower option
     if pred_2h is not None:
-        base_err = model_error_stats.get('Actual2H', 10.33)
-        range_half_width = max(2, min(5, int(round(base_err * 0.6))))
-        narrow_half = max(1, int(round(base_err * 0.35)))
+        _, narrow_half, range_half_width = range_half_widths_for_halftime_total(feature_dict['halftime_total'])
         low = max(0, pred_2h - range_half_width)
         high = pred_2h + range_half_width
         ws[f"I{i}"] = f"{low}-{high}"
@@ -189,9 +187,7 @@ for i, row in enumerate(rows[1:], start=2):  # start=2 for 1-based row
 
     # Total range (integers) - dynamic width
     if pred_total is not None:
-        base_err = model_error_stats.get('ActualTotal', 10.33)
-        range_half_width = max(3, min(7, int(round(base_err * 0.6))))
-        narrow_half = max(2, int(round(base_err * 0.4)))
+        _, narrow_half, range_half_width = range_half_widths_for_halftime_total(feature_dict['halftime_total'])
         low = max(0, pred_total - range_half_width)
         high = pred_total + range_half_width
         ws[f"J{i}"] = f"{low}-{high}"

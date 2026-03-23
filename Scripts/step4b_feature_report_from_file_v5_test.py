@@ -9,7 +9,7 @@ from statistics import mean
 import pickle
 from pathlib import Path
 
-from model_feature_utils import build_feature_vector
+from model_feature_utils import build_feature_vector, range_half_widths_for_halftime_total
 
 DEFAULT_DATA_ROOT = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
 
@@ -932,12 +932,8 @@ def synthesize_game(
     else:
         final_total_mid = (home_ht or 0) + (away_ht or 0) + calibrated_expected_2h
 
-    err_2h = model_error_stats.get('Actual2H', 10.33)
-    err_total = model_error_stats.get('ActualTotal', 10.33)
-    range_half_width_2h = max(2, min(5, int(round(err_2h * 0.6))))
-    narrow_half_width_2h = max(1, int(round(err_2h * 0.35)))
-    range_half_width_total = max(3, min(7, int(round(err_total * 0.6))))
-    narrow_half_width_total = max(2, int(round(err_total * 0.4)))
+    _, narrow_half_width_2h, range_half_width_2h = range_half_widths_for_halftime_total(feature_dict['halftime_total'])
+    _, narrow_half_width_total, range_half_width_total = range_half_widths_for_halftime_total(feature_dict['halftime_total'])
 
     second_half_range = f"{max(0, calibrated_expected_2h - narrow_half_width_2h)}-{calibrated_expected_2h + narrow_half_width_2h}"
     second_half_wide_range = f"{max(0, calibrated_expected_2h - range_half_width_2h)}-{calibrated_expected_2h + range_half_width_2h}"
