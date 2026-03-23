@@ -52,6 +52,12 @@ FEATURE_NAMES = [
     'possession_change_rate',
     'accelerating_late',
     'slowing_late',
+    'home_assist_rate',
+    'away_assist_rate',
+    'home_paint_fg_share',
+    'away_paint_fg_share',
+    'home_late_scoring_share',
+    'away_late_scoring_share',
 ]
 
 
@@ -75,6 +81,12 @@ DEFAULT_PBP_FEATURES = {
     'possession_change_rate': 2.03,
     'accelerating_late': 0.0,
     'slowing_late': 0.0,
+    'home_assist_rate': 0.46,
+    'away_assist_rate': 0.46,
+    'home_paint_fg_share': 0.53,
+    'away_paint_fg_share': 0.53,
+    'home_late_scoring_share': 0.19,
+    'away_late_scoring_share': 0.19,
 }
 
 
@@ -244,6 +256,12 @@ def build_feature_dict(
         'possession_change_rate': pbp_values['possession_change_rate'],
         'accelerating_late': pbp_values['accelerating_late'],
         'slowing_late': pbp_values['slowing_late'],
+        'home_assist_rate': pbp_values['home_assist_rate'],
+        'away_assist_rate': pbp_values['away_assist_rate'],
+        'home_paint_fg_share': pbp_values['home_paint_fg_share'],
+        'away_paint_fg_share': pbp_values['away_paint_fg_share'],
+        'home_late_scoring_share': pbp_values['home_late_scoring_share'],
+        'away_late_scoring_share': pbp_values['away_late_scoring_share'],
     }
 
 

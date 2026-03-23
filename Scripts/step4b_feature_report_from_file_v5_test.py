@@ -756,6 +756,8 @@ def build_live_pbp_feature_dict(home_stats: dict, away_stats: dict, game_state: 
     long_dead_ball_gaps = float(game_state.get("long_dead_ball_gaps", 0) or 0)
     whistle_events = float(game_state.get("whistle_events_count", 0) or 0)
     tempo_flags = game_state.get("tempo_flags", {}) or {}
+    home_points = float(home_stats.get("points_inferred", 0) or 0)
+    away_points = float(away_stats.get("points_inferred", 0) or 0)
 
     return {
         "home_three_rate": rate(home_stats.get("3PA", 0), home_fga, 0.33),
@@ -777,6 +779,12 @@ def build_live_pbp_feature_dict(home_stats: dict, away_stats: dict, game_state: 
         "possession_change_rate": rate(possession_change_markers, estimated_possessions, 2.03),
         "accelerating_late": 1.0 if tempo_flags.get("accelerating_late") else 0.0,
         "slowing_late": 1.0 if tempo_flags.get("slowing_late") else 0.0,
+        "home_assist_rate": rate(home_stats.get("assisted_FGM", 0), home_stats.get("FGM", 0), 0.46),
+        "away_assist_rate": rate(away_stats.get("assisted_FGM", 0), away_stats.get("FGM", 0), 0.46),
+        "home_paint_fg_share": rate(home_stats.get("paint_FGM", 0), home_stats.get("FGM", 0), 0.53),
+        "away_paint_fg_share": rate(away_stats.get("paint_FGM", 0), away_stats.get("FGM", 0), 0.53),
+        "home_late_scoring_share": rate(home_stats.get("segment_points", {}).get("3:59-0:00", 0), home_points, 0.19),
+        "away_late_scoring_share": rate(away_stats.get("segment_points", {}).get("3:59-0:00", 0), away_points, 0.19),
     }
 
 
