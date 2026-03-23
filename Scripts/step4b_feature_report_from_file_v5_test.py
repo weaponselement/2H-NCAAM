@@ -932,13 +932,11 @@ def synthesize_game(
     else:
         final_total_mid = (home_ht or 0) + (away_ht or 0) + calibrated_expected_2h
 
-    _, narrow_half_width_2h, range_half_width_2h = range_half_widths_for_halftime_total(feature_dict['halftime_total'])
-    _, narrow_half_width_total, range_half_width_total = range_half_widths_for_halftime_total(feature_dict['halftime_total'])
+    _, narrow_half_width_2h, _ = range_half_widths_for_halftime_total(feature_dict['halftime_total'])
+    _, narrow_half_width_total, _ = range_half_widths_for_halftime_total(feature_dict['halftime_total'])
 
     second_half_range = f"{max(0, calibrated_expected_2h - narrow_half_width_2h)}-{calibrated_expected_2h + narrow_half_width_2h}"
-    second_half_wide_range = f"{max(0, calibrated_expected_2h - range_half_width_2h)}-{calibrated_expected_2h + range_half_width_2h}"
     total_range = f"{max(0, final_total_mid - narrow_half_width_total)}-{final_total_mid + narrow_half_width_total}"
-    total_wide_range = f"{max(0, final_total_mid - range_half_width_total)}-{final_total_mid + range_half_width_total}"
 
     reasons = ["ML-based prediction using halftime score, pace, date, and team strength metrics."]
 
@@ -953,13 +951,13 @@ def synthesize_game(
             "calibration_adjustment": calibration_adjustment,
             "mid": calibrated_expected_2h,
             "range": second_half_range,
-            "wide_range": second_half_wide_range,
+            "wide_range": second_half_range,
             "variance": variance,
         },
         "full_game_total_projection": {
             "mid": final_total_mid,
             "range": total_range,
-            "wide_range": total_wide_range,
+            "wide_range": total_range,
             "lean": "OVER" if calibrated_expected_2h >= 70 else "UNDER" if calibrated_expected_2h <= 64 else "NO STRONG LEAN",
         },
         "confidence": confidence,

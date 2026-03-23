@@ -132,10 +132,10 @@ def halftime_total_bucket(halftime_total):
 def range_half_widths_for_halftime_total(halftime_total):
     bucket = halftime_total_bucket(halftime_total)
     policy = {
-        '<=60': {'narrow': 3, 'wide': 5},
-        '61-70': {'narrow': 5, 'wide': 7},
-        '71-80': {'narrow': 4, 'wide': 6},
-        '81+': {'narrow': 4, 'wide': 6},
+        '<=60': {'narrow': 3, 'wide': 3},
+        '61-70': {'narrow': 4, 'wide': 4},
+        '71-80': {'narrow': 4, 'wide': 4},
+        '81+': {'narrow': 3, 'wide': 3},
     }
     widths = policy[bucket]
     return bucket, widths['narrow'], widths['wide']

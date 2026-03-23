@@ -177,21 +177,21 @@ for i, row in enumerate(rows[1:], start=2):  # start=2 for 1-based row
     ws[f"H{i}"] = margin_range
     ws[f"K{i}"] = confidence
 
-    # 2H range (integers) - dynamic width from model error, plus narrower option
+    # 2H range (integers) - single operational band
     if pred_2h is not None:
         _, narrow_half, range_half_width = range_half_widths_for_halftime_total(feature_dict['halftime_total'])
-        low = max(0, pred_2h - range_half_width)
-        high = pred_2h + range_half_width
+        low = max(0, pred_2h - narrow_half)
+        high = pred_2h + narrow_half
         ws[f"I{i}"] = f"{low}-{high}"
-        ws[f"S{i}"] = f"{max(0, pred_2h - narrow_half)}-{pred_2h + narrow_half}"
+        ws[f"S{i}"] = f"{low}-{high}"
 
-    # Total range (integers) - dynamic width
+    # Total range (integers) - single operational band
     if pred_total is not None:
         _, narrow_half, range_half_width = range_half_widths_for_halftime_total(feature_dict['halftime_total'])
-        low = max(0, pred_total - range_half_width)
-        high = pred_total + range_half_width
+        low = max(0, pred_total - narrow_half)
+        high = pred_total + narrow_half
         ws[f"J{i}"] = f"{low}-{high}"
-        ws[f"T{i}"] = f"{max(0, pred_total - narrow_half)}-{pred_total + narrow_half}"
+        ws[f"T{i}"] = f"{low}-{high}"
 
     updated += 1
     if updated % 100 == 0:
