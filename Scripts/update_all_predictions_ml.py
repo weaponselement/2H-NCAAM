@@ -3,7 +3,7 @@ from pathlib import Path
 import pickle
 import json
 
-from model_feature_utils import build_feature_vector, load_team_stats, parse_halftime_score, range_half_widths_for_halftime_total, resolve_team_stats
+from model_feature_utils import build_feature_vector, load_team_stats, load_market_lines, load_neutral_court_games, load_rest_context, parse_halftime_score, range_half_widths_for_halftime_total, resolve_team_stats
 from step4b_feature_report_from_file_v5_test import load_game_pbp_features
 
 # Load models
@@ -62,6 +62,15 @@ for row in rows[1:]:
 pbp_feature_cache = {}
 data_root = str(Path(__file__).resolve().parent.parent / 'data')
 
+# Load market lines
+market_lines_cache = load_market_lines()
+
+# Load rest context
+rest_context = load_rest_context(data_root=data_root)
+
+# Load neutral court game IDs
+neutral_court_games = load_neutral_court_games(data_root=data_root)
+
 # Update predictions
 updated = 0
 for i, row in enumerate(rows[1:], start=2):  # start=2 for 1-based row
@@ -100,6 +109,12 @@ for i, row in enumerate(rows[1:], start=2):  # start=2 for 1-based row
         away_avg_scored,
         away_avg_allowed,
         pbp_features,
+        game_id=game_id,
+        market_lines_cache=market_lines_cache,
+        home_team_seo=home_team,
+        away_team_seo=away_team,
+        rest_context=rest_context,
+        neutral_court_games=neutral_court_games,
     )
 
     def predict_target(model_key):

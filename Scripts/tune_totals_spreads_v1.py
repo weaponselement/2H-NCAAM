@@ -7,7 +7,7 @@ from openpyxl import load_workbook
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_absolute_error
 
-from model_feature_utils import FEATURE_NAMES, build_feature_vector, load_team_stats, parse_halftime_score, resolve_team_stats
+from model_feature_utils import FEATURE_NAMES, build_feature_vector, load_team_stats, load_market_lines, load_neutral_court_games, load_rest_context, parse_halftime_score, resolve_team_stats
 from step4b_feature_report_from_file_v5_test import load_game_pbp_features
 
 path = Path('logs/NCAAM Results.xlsx')
@@ -33,8 +33,19 @@ pbp_feature_cache = {}
 data_root = str(Path(__file__).resolve().parent.parent / 'data')
 
 print('loaded team stats for', len(dates), 'dates')
-
 print('loaded', len(data), 'rows')
+
+# Load market lines
+market_lines_cache = load_market_lines()
+print('loaded market lines for', len(market_lines_cache), 'games')
+
+# Load rest context
+rest_context = load_rest_context()
+print('loaded rest context for', len(rest_context), 'teams')
+
+# Load neutral court game IDs
+neutral_court_games = load_neutral_court_games()
+print('loaded neutral court games:', len(neutral_court_games))
 
 
 def safe_float(value):
@@ -79,6 +90,12 @@ for r in data:
             away_avg_scored,
             away_avg_allowed,
             pbp_features,
+            game_id=game_id,
+            market_lines_cache=market_lines_cache,
+            home_team_seo=home_team,
+            away_team_seo=away_team,
+            rest_context=rest_context,
+            neutral_court_games=neutral_court_games,
         )
         r.update(feature_dict)
         r['model_features'] = feature_vector

@@ -1,3 +1,4 @@
+import csv
 import json
 import statistics
 from datetime import datetime
@@ -5,6 +6,27 @@ from pathlib import Path
 
 
 DEFAULT_TEAM_AVG = 70.0
+
+
+def ml_to_implied_prob(american_odds):
+    """Convert American moneyline odds to implied win probability.
+    
+    Args:
+        american_odds: positive or negative integer (e.g., +150, -130)
+    
+    Returns:
+        float between 0.0 and 1.0, or None if invalid
+    """
+    if american_odds is None:
+        return None
+    try:
+        odds = float(american_odds)
+        if odds > 0:
+            return 1.0 / (1.0 + (odds / 100.0))
+        else:
+            return abs(odds) / (abs(odds) + 100.0)
+    except (TypeError, ValueError):
+        return None
 
 FEATURE_NAMES = [
     'home_lead',
@@ -67,6 +89,9 @@ FEATURE_NAMES = [
     'assist_rate_gap',
     'paint_fg_share_gap',
     'late_scoring_share_gap',
+    'market_spread_home_close',
+    'market_total_close',
+    'market_home_implied_prob',
 ]
 
 
@@ -96,6 +121,9 @@ DEFAULT_PBP_FEATURES = {
     'away_paint_fg_share': 0.53,
     'home_late_scoring_share': 0.19,
     'away_late_scoring_share': 0.19,
+    'market_spread_home_close': 0.0,
+    'market_total_close': 150.0,
+    'market_home_implied_prob': 0.5,
 }
 
 
@@ -126,6 +154,119 @@ def resolve_team_stats(stats, team_name):
         float(team_stats.get('avg_scored', DEFAULT_TEAM_AVG)),
         float(team_stats.get('avg_allowed', DEFAULT_TEAM_AVG)),
     )
+
+
+def load_market_lines():
+    """Load canonical market lines keyed by GameID for all games."""
+    lines = {}
+    path = Path(__file__).resolve().parent.parent / 'data' / 'processed' / 'market_lines' / 'canonical_lines.csv'
+    if not path.exists():
+        return lines
+    try:
+        import csv as csv_module
+        with open(path, 'r', encoding='utf-8') as f:
+            reader = csv_module.DictReader(f)
+            for row in reader:
+                gid = str(row.get('game_id') or '').strip()
+                if not gid:
+                    continue
+                lines[gid] = {
+                    'spread_home': row.get('spread_home'),
+                    'spread_away': row.get('spread_away'),
+                    'ml_home': row.get('ml_home'),
+                    'ml_away': row.get('ml_away'),
+                    'total_game': row.get('total_game'),
+                    'total_2h': row.get('total_2h'),
+                }
+    except Exception:
+        pass
+    return lines
+
+
+def load_rest_context(data_root=None):
+    """Build a rest-context dict: {team_seo: sorted list of game date strings YYYY-MM-DD}.
+
+    Only includes games whose gameState is 'final' (completed games).
+    Used to compute days since a team's last game before any given date.
+    """
+    import glob as _glob
+    if data_root is None:
+        data_root = str(Path(__file__).resolve().parent.parent / 'data')
+    pattern = str(Path(data_root) / 'cache' / 'scoreboard_daily' / 'scoreboard_*.json')
+    rest: dict = {}
+    for fpath in _glob.glob(pattern):
+        fname = Path(fpath).name  # scoreboard_YYYY-MM-DD.json
+        date_str = fname[len('scoreboard_'):-len('.json')]
+        try:
+            datetime.strptime(date_str, '%Y-%m-%d')
+        except ValueError:
+            continue
+        try:
+            with open(fpath, 'r', encoding='utf-8') as _f:
+                payload = json.load(_f)
+        except Exception:
+            continue
+        for item in payload.get('games', []):
+            g = item.get('game') or {}
+            state = str(g.get('gameState') or '').lower()
+            if state not in {'final', 'complete', 'completed'}:
+                continue
+            away_seo = ((g.get('away') or {}).get('names') or {}).get('seo', '')
+            home_seo = ((g.get('home') or {}).get('names') or {}).get('seo', '')
+            for seo in (away_seo, home_seo):
+                if seo:
+                    rest.setdefault(seo, set()).add(date_str)
+    # Convert sets to sorted lists for binary search
+    return {seo: sorted(dates) for seo, dates in rest.items()}
+
+
+def get_days_rest(rest_context, team_seo, game_date_str, cap=10):
+    """Return days since team_seo's most recent game before game_date_str.
+
+    Returns cap if no prior game is found (e.g. season start).
+    """
+    import bisect as _bisect
+    dates = rest_context.get(team_seo)
+    if not dates:
+        return float(cap)
+    # Find insertion point for game_date_str; games strictly before this date
+    idx = _bisect.bisect_left(dates, game_date_str)
+    if idx == 0:
+        return float(cap)
+    prev_date = dates[idx - 1]
+    try:
+        delta = datetime.strptime(game_date_str, '%Y-%m-%d') - datetime.strptime(prev_date, '%Y-%m-%d')
+        return float(min(delta.days, cap))
+    except Exception:
+        return float(cap)
+
+
+def load_neutral_court_games(data_root=None):
+    """Return a set of gameID strings that were played on neutral courts.
+
+    Uses the bracketRound and bracketId fields from scoreboard_daily cache.
+    Any game with a non-empty bracketRound or bracketId is treated as neutral.
+    """
+    import glob as _glob
+    if data_root is None:
+        data_root = str(Path(__file__).resolve().parent.parent / 'data')
+    pattern = str(Path(data_root) / 'cache' / 'scoreboard_daily' / 'scoreboard_*.json')
+    neutral: set = set()
+    for fpath in _glob.glob(pattern):
+        try:
+            with open(fpath, 'r', encoding='utf-8') as _f:
+                payload = json.load(_f)
+        except Exception:
+            continue
+        for item in payload.get('games', []):
+            g = item.get('game') or {}
+            br = g.get('bracketRound')
+            bi = g.get('bracketId')
+            if br or bi:
+                gid = str(g.get('gameID') or '').strip()
+                if gid:
+                    neutral.add(gid)
+    return neutral
 
 
 def parse_halftime_score(halftime_score):
@@ -186,6 +327,12 @@ def build_feature_dict(
     away_avg_scored,
     away_avg_allowed,
     pbp_features=None,
+    game_id=None,
+    market_lines_cache=None,
+    home_team_seo=None,
+    away_team_seo=None,
+    rest_context=None,
+    neutral_court_games=None,
 ):
     halftime_total = float((home_ht or 0) + (away_ht or 0))
     pace_profile_normalized = str(pace_profile or '').strip().lower()
@@ -230,6 +377,40 @@ def build_feature_dict(
     assist_rate_gap = pbp_values['home_assist_rate'] - pbp_values['away_assist_rate']
     paint_fg_share_gap = pbp_values['home_paint_fg_share'] - pbp_values['away_paint_fg_share']
     late_scoring_share_gap = pbp_values['home_late_scoring_share'] - pbp_values['away_late_scoring_share']
+
+    market_spread_home_close = pbp_values['market_spread_home_close']
+    market_total_close = pbp_values['market_total_close']
+    market_home_implied_prob = pbp_values['market_home_implied_prob']
+
+    if game_id and market_lines_cache is not None:
+        game_id_key = str(game_id).strip()
+        line_row = market_lines_cache.get(game_id_key)
+        if line_row:
+            spread_val = line_row.get('spread_home')
+            total_val = line_row.get('total_game')
+            ml_val = line_row.get('ml_home')
+
+            if spread_val not in (None, ''):
+                try:
+                    import math as _math
+                    s = float(spread_val)
+                    market_spread_home_close = s
+                    # Derive implied probability from spread when no ML is available
+                    # logistic: ~0.065 pts per probability unit
+                    market_home_implied_prob = 1.0 / (1.0 + _math.exp(s * 0.065))
+                except (TypeError, ValueError):
+                    pass
+            if total_val not in (None, ''):
+                try:
+                    market_total_close = float(total_val)
+                except (TypeError, ValueError):
+                    pass
+            if ml_val not in (None, ''):
+                # Only use ML if it looks like American odds (large integer)
+                # not a probability percentage from our scraper derivation
+                implied = ml_to_implied_prob(ml_val)
+                if implied is not None:
+                    market_home_implied_prob = implied
 
     return {
         'home_lead': home_lead,
@@ -292,6 +473,9 @@ def build_feature_dict(
         'assist_rate_gap': assist_rate_gap,
         'paint_fg_share_gap': paint_fg_share_gap,
         'late_scoring_share_gap': late_scoring_share_gap,
+        'market_spread_home_close': market_spread_home_close,
+        'market_total_close': market_total_close,
+        'market_home_implied_prob': market_home_implied_prob,
     }
 
 

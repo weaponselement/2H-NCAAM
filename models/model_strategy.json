@@ -1,7 +1,7 @@
 {
   "total_prediction_strategy": "derived_2h",
-  "direct_total_mae": 10.960528846153846,
-  "derived_total_mae": 10.574951923076922,
+  "direct_total_mae": 10.745721153846155,
+  "derived_total_mae": 10.437259615384617,
   "feature_names": [
     "home_lead",
     "abs_home_lead",
@@ -62,6 +62,9 @@
     "orb_rate_gap",
     "assist_rate_gap",
     "paint_fg_share_gap",
-    "late_scoring_share_gap"
+    "late_scoring_share_gap",
+    "market_spread_home_close",
+    "market_total_close",
+    "market_home_implied_prob"
   ]
 }

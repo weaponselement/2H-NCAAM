@@ -9,7 +9,7 @@ from statistics import mean
 import pickle
 from pathlib import Path
 
-from model_feature_utils import build_feature_vector, range_half_widths_for_halftime_total
+from model_feature_utils import build_feature_vector, load_market_lines, load_neutral_court_games, load_rest_context, range_half_widths_for_halftime_total
 
 DEFAULT_DATA_ROOT = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
 
@@ -880,6 +880,9 @@ def synthesize_game(
     model_error_stats: dict,
     model_strategy: dict,
     run_date: str,
+    market_lines_cache: dict | None = None,
+    rest_context: dict | None = None,
+    neutral_court_games: set | None = None,
 ):
     margin = (home_ht or 0) - (away_ht or 0)
     pace_profile = game_meta.get("pace_profile", "")
@@ -898,6 +901,12 @@ def synthesize_game(
         away_avg_scored,
         away_avg_allowed,
         pbp_features,
+        game_id=game_id,
+        market_lines_cache=market_lines_cache,
+        home_team_seo=home_seo,
+        away_team_seo=away_seo,
+        rest_context=rest_context,
+        neutral_court_games=neutral_court_games,
     )
 
     def predict_target(model_key: str):
@@ -1034,6 +1043,9 @@ def main():
     prediction_models = load_prediction_models()
     model_error_stats = load_model_error_stats()
     model_strategy = load_model_strategy()
+    market_lines_cache = load_market_lines()
+    rest_context = load_rest_context(data_root=data_root)
+    neutral_court_games = load_neutral_court_games(data_root=data_root)
     selected_path = args.selected_games or os.path.join(
         data_root, "processed", "selected_games", f"selected_games_{run_date}.json"
     )
@@ -1115,6 +1127,9 @@ def main():
         model_error_stats,
         model_strategy,
         run_date,
+        market_lines_cache=market_lines_cache,
+        rest_context=rest_context,
+        neutral_court_games=neutral_court_games,
     )
 
     out_dir = os.path.join(data_root, "processed", "reports")
