@@ -72,13 +72,26 @@ def log_prediction(date_str, home, away, game_id, market_line, pred_total,
     ws.cell(row=row_idx, column=8).value = lean                     # PregameLean
     ws.cell(row=row_idx, column=9).value = trigger                  # PregameTrigger
     
+    # Calculate confidence from gap magnitude (0-100 scale)
+    if pred_gap is not None:
+        abs_gap = abs(pred_gap)
+        if abs_gap >= 10:
+            confidence = 95
+        elif abs_gap >= 8:
+            confidence = 75
+        elif abs_gap >= 5:
+            confidence = 50
+        else:
+            confidence = 25
+        ws.cell(row=row_idx, column=10).value = confidence           # Confidence
+    
     # Write results if provided
     if actual_winner is not None:
-        ws.cell(row=row_idx, column=10).value = actual_winner       # ActualWinner
+        ws.cell(row=row_idx, column=11).value = actual_winner       # ActualWinner
     
     if actual_total is not None:
         actual_total_f = safe_float(actual_total)
-        ws.cell(row=row_idx, column=11).value = actual_total_f      # ActualTotal
+        ws.cell(row=row_idx, column=12).value = actual_total_f      # ActualTotal
         
         # Calculate PredictionHit (did directional lean come true?)
         if lean and market_line is not None and actual_total_f is not None:
@@ -87,7 +100,14 @@ def log_prediction(date_str, home, away, game_id, market_line, pred_total,
                 actual_over = actual_total_f > market_line_f
                 pred_over = lean.upper() == "OVER"
                 hit = 1 if (actual_over == pred_over) else 0
-                ws.cell(row=row_idx, column=12).value = hit         # PredictionHit
+                ws.cell(row=row_idx, column=13).value = hit         # PredictionHit
+        
+        # Calculate absolute error
+        if pred_total is not None:
+            pred_total_f = safe_float(pred_total)
+            if pred_total_f is not None:
+                error = abs(actual_total_f - pred_total_f)
+                ws.cell(row=row_idx, column=14).value = error       # PredictionErrorAbs
     
     wb.save(str(WORKBOOK_PATH))
     return row_idx

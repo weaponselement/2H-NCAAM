@@ -3,7 +3,7 @@
 **Date:** 2026-03-28  
 **Status:** Clean schema for pregame model only
 
-## Active Columns (11 total)
+## Active Columns (14 total)
 
 | # | Column | Purpose | Source | When Filled |
 |---|--------|---------|--------|------------|
@@ -16,9 +16,11 @@
 | 7 | `PregamePredGap` | Signed gap (pred - line) | `predict_pregame_totals_cached_v1.py` | Pregame (at prediction) |
 | 8 | `PregameLean` | Directional call (OVER/UNDER) | `predict_pregame_totals_cached_v1.py` | Pregame (at prediction) |
 | 9 | `PregameTrigger` | Action tier (FULL SEND / LEAN / MONITOR / NO ACTION) | `predict_pregame_totals_cached_v1.py` | Pregame (at prediction) |
-| 10 | `ActualWinner` | Winner of the game | `update_new_results_only_v1.py` | Postgame (after game ends) |
-| 11 | `ActualTotal` | Combined final score | `update_new_results_only_v1.py` | Postgame (after game ends) |
-| 12 | `PredictionHit` | Did lean come true? (1 = yes, 0 = no) | `log_pregame_prediction_v1.py` | Postgame (after results filled) |
+| 10 | `Confidence` | Confidence score 0-100 (derived from gap magnitude) | `predict_pregame_totals_cached_v1.py` | Pregame (at prediction) |
+| 11 | `ActualWinner` | Winner of the game | `update_new_results_only_v1.py` | Postgame (after game ends) |
+| 12 | `ActualTotal` | Combined final score | `update_new_results_only_v1.py` | Postgame (after game ends) |
+| 13 | `PredictionHit` | Did lean come true? (1 = yes, 0 = no) | `log_pregame_prediction_v1.py` | Postgame (after results filled) |
+| 14 | `PredictionErrorAbs` | Absolute error: |actual - predicted| | `log_pregame_prediction_v1.py` | Postgame (after results filled) |
 
 ## Workflow: Pregame → Postgame
 
@@ -46,13 +48,16 @@
    ```
    → Fills ActualWinner, ActualTotal
 
-2. Update prediction hit:
-   ```powershell
-   python Scripts/log_pregame_prediction_v1.py \
-     --date YYYY-MM-DD --home HOME --away AWAY --game-id GAMEID \
-     --actual-winner WINNER --actual-total SCORE
-   ```
-   → Calculates and fills PredictionHit
+2. Update prediction hit and error:
+    ```powershell
+    python Scripts/log_pregame_prediction_v1.py \
+       --date YYYY-MM-DD --home HOME --away AWAY --game-id GAMEID \
+       --market-line 137.5 --pred-total 148.0 \
+       --lean OVER --actual-winner IOWA --actual-total 134
+    ```
+    → Calculates and fills:
+       - **PredictionHit**: 1 if lean came true, 0 if wrong
+       - **PredictionErrorAbs**: |actual - predicted| (e.g., |134 - 148| = 14 pts off)
 
 ## Why This Schema
 
@@ -60,7 +65,7 @@
 - 17 dead 2H columns (ActualMargin, Actual2H, PredMargin, etc.) — never used by pregame model
 - Confusing, bloated, made future audits unclear
 
-**New workbook (11 columns):**
+**New workbook (14 columns):**
 - Only columns relevant to current pregame model
 - MarketTotalLine captured so predictions are self-contained (no need to cross-ref canonical_lines.csv)
 - PredictionHit calculated automatically for easy evaluation
