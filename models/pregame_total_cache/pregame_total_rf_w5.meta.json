@@ -1,10 +1,10 @@
 {
-  "fingerprint": "164219d6f018ea70",
+  "fingerprint": "a531d8a98926ba5d",
   "fingerprint_parts": {
     "script_version": "2026-03-27-v1",
     "window": 5,
-    "workbook_mtime": 1774582049.8843412,
-    "workbook_size": 546495,
+    "workbook_mtime": 1774669672.573491,
+    "workbook_size": 588208,
     "lines_mtime": 1774584554.5294497,
     "lines_size": 668574,
     "baseline_count": 267,
@@ -12,7 +12,7 @@
     "latest_baseline_mtime": 1774636811.2713504,
     "latest_baseline_size": 10888
   },
-  "train_rows": 5537,
+  "train_rows": 5542,
   "window": 5,
-  "saved_epoch": 1774663505.8635015
+  "saved_epoch": 1774671542.5127144
 }

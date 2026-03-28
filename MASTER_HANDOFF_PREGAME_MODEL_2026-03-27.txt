@@ -1,6 +1,58 @@
 NCAAM MODEL - MASTER HANDOFF (PREGAME FOCUS)
-Last updated: 2026-03-27
+Last updated: 2026-03-28
 Owner intent: Preserve current progress, avoid regression, resume quickly in future sessions and next season.
+
+Update note (2026-03-28):
+- The retired 2H script set has now been physically removed from the repository.
+- Post-deletion verification completed with two clean pregame-only audit passes:
+  - Active script compile checks: PASS
+  - Workbook/lines/baselines/cache integrity audit: PASS
+  - Cached predictor smoke tests: PASS
+
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!! CRITICAL — READ THIS BEFORE ANYTHING ELSE                         !!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+THE 2H LIVE-BET HALFTIME MODEL IS DEAD. IT IS NOT BEING USED.
+IT IS NOT BEING MAINTAINED. IT IS NOT PART OF THIS PROJECT.
+
+Do NOT:
+- Reference, run, fix, audit, or improve any halftime prediction pipeline.
+- Touch WinnerCorrect, Pred2HRange, Actual2H, TwoH_Error, PredWinner,
+  PredMargin, Pred2HRange_Narrow, PredTotalRange, Total_Error, Confidence,
+  TriggerDecision, TriggerName, TriggerHistHit, TriggerHistN, WageredFlag,
+  TriggerVersion, StakeTier columns in the workbook — they are dead weight.
+- Run analyze_results_data.py — it audits 2H model columns only, not the
+  current pregame model. Its output means nothing here.
+- Run log_prediction_to_results_v1.py — this writes 2H halftime predictions.
+- Run trigger_gate_from_workbook_v1.py — 2H trigger/stake gate. Defunct.
+- Run step4_pull_halftime_pbp_v2.py — live halftime PBP pull. Defunct.
+- Run backfill_halftime_predictions_for_date_v1.py — 2H backfill. Defunct.
+- Run postgame_export_to_log_v1.py — 2H postgame export. Defunct.
+- Run rebuild_reports_from_workbook_v2.py — 2H report rebuild. Defunct.
+- Run rebuild_results_from_reports_v1.py — 2H results rebuild. Defunct.
+- Run overwrite_predictions_in_place_v1.py — 2H overwrite tool. Defunct.
+- Run update_all_predictions_ml.py — bulk-applies 2H model to workbook. Defunct.
+- Run analyze_trigger_cohorts_v1.py — 2H trigger analysis. Defunct.
+- Run explore_tight_range_triggers_v1.py — 2H range trigger exploration. Defunct.
+
+These scripts and columns exist only as historical artifacts. Touching them
+will actively corrupt thinking about what this model does and how to improve it.
+The 2H model is entirely separate from the pregame model. The workbook columns
+it wrote are irrelevant to pregame model training. Do not attempt to reconcile
+them, audit them, or derive meaning from their numbers.
+
+The ONLY pregame model input from the workbook is:
+  Date | Home | Away | GameID | ActualTotal
+
+That is it. Everything else the pregame model needs comes from:
+  data/processed/market_lines/canonical_lines.csv
+  data/processed/baselines/lastN_<window>_YYYY-MM-DD.json
+  data/raw/pbp_live/<GameID>/ (historical baseline PBP feature files)
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
 
 ======================================================================
 1) EXECUTIVE SUMMARY (READ THIS FIRST)
@@ -8,35 +60,37 @@ Owner intent: Preserve current progress, avoid regression, resume quickly in fut
 
 Current strategic focus is PRE-GAME totals prediction and directional O/U decision support.
 
-Live 2H betting expansion is DE-PRIORITIZED for now.
-Do not steer new sessions back into broad live 2H redesign unless explicitly requested.
+The 2H live-bet halftime model has been permanently retired. Do not return to it.
 
-The current production-ready workflow for pregame totals is now cache-backed:
+The current production-ready workflow for pregame totals is cache-backed:
 - First run after data changes trains (slow, about 7-10 minutes).
 - Repeat runs reuse cached model (fast, seconds).
 
-This solved the major usability problem (retraining every run).
-
-Primary objective now:
+Primary objective:
 - Consistent, reproducible pregame predictions vs known line inputs.
 - Preserve statistical discipline and avoid accidental lookahead.
 - Build toward productization (paywall app/site) without changing core logic impulsively.
 
 
 ======================================================================
-2) WHAT HAS BEEN RETIRED / DE-EMPHASIZED
+2) WHAT HAS BEEN PERMANENTLY RETIRED (DO NOT RESURRECT)
 ======================================================================
 
-These are not deleted, but they are NOT current north-star workstreams:
+The entire 2H live-bet halftime pipeline. This is NOT a de-prioritized backburner
+item — it is a CLOSED direction. Future sessions must not open it back up.
 
-A) Live halftime over-optimization as primary product direction.
-B) Chasing exact-point tight ranges as the main success metric.
-C) Re-running heavy pregame full retrains for every 1-2 game query.
+Retired because:
+A) It was a fundamentally different product (live in-game betting, not pregame).
+B) Its workbook columns pollute analysis of the pregame model.
+C) Auditing/fixing its outputs wasted significant session time (e.g. the workbook
+   collision issue, 1,425 corrupted rows, were caused by 2H model scripts writing
+   to the wrong columns — a direct cost of keeping the 2H pipeline alive).
+D) There is no path to using it that does not risk contaminating the pregame model
+   training data, feature logic, or evaluation metrics.
 
-Important context:
-- Existing halftime pipeline remains in repo and functional.
-- Trigger gate logic remains available.
-- But current user direction is to focus on PRE-GAME model and clean reproducible pregame outputs.
+Also retired:
+- Chasing exact-point tight ranges as the main success metric.
+- Re-running heavy pregame full retrains for every 1-2 game query (replaced by cache).
 
 
 ======================================================================
@@ -78,6 +132,36 @@ Primary data dependencies:
 - data/processed/market_lines/canonical_lines.csv
 - data/processed/baselines/lastN_5_YYYY-MM-DD.json (and related lastN files)
 - data/raw/pbp_live/... (priors/features support)
+
+Data lineage and storage contracts (authoritative):
+- Source: workbook game log and results in logs/NCAAM Results.xlsx (sheet: Game_Log).
+- Source: historical pregame lines scraped from Covers via Scripts/ncaab_historical_lines_covers_v1.py.
+- Optional source: staged sportsbook JSON flow (SGO) via Scripts/stage_market_lines_sgo_v1.py -> Scripts/merge_staged_lines_to_canonical_v1.py.
+- Canonical store: data/processed/market_lines/canonical_lines.csv.
+- Baseline store: data/processed/baselines/lastN_<window>_YYYY-MM-DD.json.
+
+Canonical market line schema (from code and current file header):
+- game_id
+- date
+- away_seo
+- home_seo
+- spread_home
+- spread_away
+- ml_home
+- ml_away
+- total_game
+- total_2h
+- sgo_event_id
+- source_file
+- staged_timestamp
+
+Schema and integration docs:
+- MARKET_LINES_SCHEMA.md
+- MARKET_LINES_INTEGRATION.md
+
+Market-line ingestion scripts (important):
+- Scripts/ncaab_historical_lines_covers_v1.py
+- Scripts/merge_staged_lines_to_canonical_v1.py
 
 Runbook/doc files:
 - README.md (contains current runbook section and production vs experimental split)
@@ -130,13 +214,56 @@ powershell -NoProfile -ExecutionPolicy Bypass -File Scripts/vscode_task_runner.p
 
 
 C) Script-only method (bypass PS runner)
-c:/NCAA Model/.venv/Scripts/python.exe Scripts/predict_pregame_totals_cached_v1.py --window 5 --game "michigan-st,uconn,136.5,Michigan State vs UConn,7:45 PM CST" --game "tennessee,iowa-st,139.5,Tennessee vs Iowa State,9:25 PM CST"
+"c:/NCAA Model/.venv/Scripts/python.exe" Scripts/predict_pregame_totals_cached_v1.py --window 5 --game "michigan-st,uconn,136.5,Michigan State vs UConn,7:45 PM CST" --game "tennessee,iowa-st,139.5,Tennessee vs Iowa State,9:25 PM CST"
 
 
 D) Force retrain when intentionally needed
 Add: --force-retrain
 
 Use this only when source data has changed and you want a fresh model immediately.
+
+
+E) Covers.com scraper runbook (pregame line source)
+
+Current pregame historical line source is Covers-derived data written to canonical lines.
+
+Primary scraper:
+"c:/NCAA Model/.venv/Scripts/python.exe" Scripts/ncaab_historical_lines_covers_v1.py --since YYYY-MM-DD
+
+Single-date scrape:
+"c:/NCAA Model/.venv/Scripts/python.exe" Scripts/ncaab_historical_lines_covers_v1.py --date YYYY-MM-DD
+
+Full workbook date refresh (expensive):
+"c:/NCAA Model/.venv/Scripts/python.exe" Scripts/ncaab_historical_lines_covers_v1.py --all
+
+Dry-run validation (no file writes):
+"c:/NCAA Model/.venv/Scripts/python.exe" Scripts/ncaab_historical_lines_covers_v1.py --date YYYY-MM-DD --dry-run
+
+Output target used by evaluators/pregame workflows:
+- data/processed/market_lines/canonical_lines.csv
+
+Important semantics:
+- This path is pregame closing-style totals from Covers source.
+- It is not halftime in-play market capture.
+- 2H totals are typically blank in this Covers path.
+
+When to run scraper:
+1) After adding new historical dates/games to workbook.
+2) Before pregame evaluation runs that need updated line coverage.
+3) Before intentional model retrain if line universe changed materially.
+
+Sanity check after scrape:
+1) Confirm canonical file updated timestamp.
+2) Confirm expected date range present.
+3) Re-run pregame evaluator and check joined-row counts.
+
+Coverage audit command (recommended before large backfills):
+"c:/NCAA Model/.venv/Scripts/python.exe" Scripts/audit_covers_matching_v1.py --recent-dates 21 --out data/logs/covers_slug_audit_recent21.json
+
+Audit interpretation:
+- Use rolling-window coverage (for example recent 21 dates) as the main health signal.
+- Treat single-date snapshots as potentially noisy due to workbook coverage/date composition.
+- Prioritize fixes from top_missing_mapped_slugs and top_unmatched in the audit JSON.
 
 
 ======================================================================

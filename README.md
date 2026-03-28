@@ -6,22 +6,32 @@ Older notes lower in this file are preserved but should be treated as historical
 START HERE FOR FULL CONTEXT:
 - `MASTER_HANDOFF_PREGAME_MODEL_2026-03-27.txt` (single-source handoff for new chat sessions and next-season restart)
 
+## ⚠️ CRITICAL — READ BEFORE RUNNING ANYTHING
+
+**The 2H live-bet halftime model is permanently retired. It does not exist for purposes of this project.**
+Do not run, fix, audit, or reference:
+`log_prediction_to_results_v1.py`, `trigger_gate_from_workbook_v1.py`,
+`step4_pull_halftime_pbp_v2.py`, `backfill_halftime_predictions_for_date_v1.py`,
+`postgame_export_to_log_v1.py`, `rebuild_reports_from_workbook_v2.py`,
+`rebuild_results_from_reports_v1.py`, `overwrite_predictions_in_place_v1.py`,
+`update_all_predictions_ml.py`, `analyze_results_data.py`, `analyze_trigger_cohorts_v1.py`,
+`explore_tight_range_triggers_v1.py`, or the `halftime_run` VS Code task.
+
+See `MASTER_HANDOFF_PREGAME_MODEL_2026-03-27.txt` for the complete list and rationale.
+
+---
+
 ## 1) What to Use Going Forward
 
-Use these as your primary scripts/tasks:
+Active pregame model scripts:
 
+- Cached pregame predictor: `Scripts/predict_pregame_totals_cached_v1.py`
 - Pregame slate prep: `Scripts/prepare_full_slate_v1.py`
 - Baseline PBP download: `Scripts/step3_download_pbp_baselines.py`
-- Halftime pull: `Scripts/step4_pull_halftime_pbp_v2.py`
-- Halftime feature report: `Scripts/step4b_feature_report_from_file_v5_test.py`
-- Log prediction to workbook: `Scripts/log_prediction_to_results_v1.py`
-- Trigger/stake gate from workbook: `Scripts/trigger_gate_from_workbook_v1.py`
-- Postgame results backfill (missing only): `Scripts/update_new_results_only_v1.py`
-- VS Code orchestrator task runner: `Scripts/vscode_task_runner.ps1`
-
-For pregame totals experiments with model output (not workbook writeback):
-
-- Cached pregame totals predictor (recommended): `Scripts/predict_pregame_totals_cached_v1.py`
+- Covers lines scraper: `Scripts/ncaab_historical_lines_covers_v1.py`
+- Covers slug audit: `Scripts/audit_covers_matching_v1.py`
+- Postgame results (fills ActualTotal only): `Scripts/update_new_results_only_v1.py`
+- VS Code task runner (prep/download/list_slate/pregame actions only): `Scripts/vscode_task_runner.ps1`
 
 ## 2) What Is Experimental / Analysis-Only
 
@@ -60,107 +70,66 @@ Cache files are saved to:
 - `models/pregame_total_cache/pregame_total_rf_w5.pkl`
 - `models/pregame_total_cache/pregame_total_rf_w5.meta.json`
 
----
+Maintenance check (Covers matching health):
 
-# NCAA Model – Daily Flow (VS Code Terminal)
-
-This project is designed to be run from the **VS Code integrated terminal** with the working directory set to: C:\NCAA Model
-
-All commands below explicitly use the virtual environment Python:C:\NCAA Model.venv\Scripts\python.exe
-
----
-
-## Step 0 — Prepare Slate, Selected Games, and Baselines (ONE command)
-
-This step:
-- pulls the D1 slate for a date
-- builds `selected_games_YYYY-MM-DD.json`
-- builds the `last4_YYYY-MM-DD.json` baseline manifest
-
-### ✅ Run:
 ```powershell
-& "c:\NCAA Model\.venv\Scripts\python.exe" "c:\NCAA Model\Scripts\prepare_full_slate_v1.py" --date YYYY-MM-DD
+& "c:/NCAA Model/.venv/Scripts/python.exe" "Scripts/audit_covers_matching_v1.py" --recent-dates 21 --out "data/logs/covers_slug_audit_recent21.json"
+```
 
-Files created/updated:
-data\processed\slates\slate_d1_YYYY-MM-DD.json
-data\processed\slates\slate_d1_YYYY-MM-DD.csv
-data\processed\selected_games\selected_games_YYYY-MM-DD.json
-data\processed\baselines\last4_YYYY-MM-DD.json
-
-Show first 25 games with IDs:
- 
-Import-Csv "C:\NCAA Model\data\processed\slates\slate_d1_YYYY-MM-DD.csv" |
-  Select-Object gameID, away_short, home_short |
-  ForEach-Object { "{0}  |  {1} @ {2}" -f $_.gameID, $_.away_short, $_.home_short } |
-  Select-Object -First 25
-
-To show all games, remove:
-    | Select-Object -First 25
-
-
-Step 2 — Pull Halftime Play-by-Play for a Game
-This step pulls live PBP and extracts first-half plays.
-✅ Run:
-& "c:\NCAA Model\.venv\Scripts\python.exe" "c:\NCAA Model\Scripts\step4_pull_halftime_pbp_v2.py" GAME_ID
-
-✅ Files created:
-data\raw\pbp_live\GAME_ID\pbp_full_<timestamp>.json
-data\raw\pbp_live\GAME_ID\pbp_first_half_<timestamp>.json
-
-Step 3 — Generate Halftime Feature Report
-This reads:
-
-the latest halftime PBP
-the baseline manifest
-the selected games file
-
-✅ Run:
-& "c:\NCAA Model\.venv\Scripts\python.exe" "c:\NCAA Model\Scripts\step4b_feature_report_from_file_v5_test.py" GAME_ID `
-  --baseline-manifest "C:\NCAA Model\data\processed\baselines\last4_YYYY-MM-DD.json" `
-  --selected-games "C:\NCAA Model\data\processed\selected_games\selected_games_YYYY-MM-DD.json"
-
-  ✅ File created:
-data\processed\reports\feature_report_v5_test_GAME_ID_<timestamp>.json
-
-Step 4 — Log Prediction to Workbook (WRITES TO EXCEL)
-⚠️ This writes immediately to Excel.
-⚠️ Running it twice for the same game will create duplicates.
-✅ Run:
-& "c:\NCAA Model\.venv\Scripts\python.exe" "c:\NCAA Model\Scripts\log_prediction_to_results_v1.py" GAME_ID
-
-✅ Workbook:
-logs\NCAAM Results.xlsx
-
-Optional — Verify Files Exist (Sanity Check)
-Get-ChildItem `
-  "C:\NCAA Model\data\processed\slates\slate_d1_YYYY-MM-DD.*", `
-  "C:\NCAA Model\data\processed\selected_games\selected_games_YYYY-MM-DD.json", `
-  "C:\NCAA Model\data\processed\baselines\last4_YYYY-MM-DD.json", `
-  "C:\NCAA Model\data\raw\pbp_live\GAME_ID\pbp_first_half_*.json", `
-  "C:\NCAA Model\data\processed\reports\feature_report_v5_test_GAME_ID_*.json" |
-  Select-Object FullName, Length
-
-  ✅ Verified Example (Known Good)
-Date:
-2026-02-26
-
-GameID:
-6502232
-
-✅ Slate generated (57 games)
-✅ Baselines built
-✅ Halftime PBP pulled
-✅ Feature report generated
-✅ Workbook logging confirmed
-
-⬆️ **End of paste** ⬆️
+This produces a ranked mismatch report used to update `slug_from_covers()` overrides.
 
 ---
 
-## ✅ What to do after pasting
-1. **Save** the file  
-2. Run:
-   ```powershell
-   git add README.md
-   git commit -m "Add clear VS Code terminal daily flow instructions"
-   git push
+# NCAA Model - Pregame Daily Flow
+
+Run from workspace root: `C:\NCAA Model`
+
+Python executable: `c:/NCAA Model/.venv/Scripts/python.exe`
+
+## Step 1 — Prep slate and baselines (morning, before tip-off)
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File Scripts/vscode_task_runner.ps1 -Action prep
+```
+
+Or via VS Code task: **NCAAM: TODAY Pregame (prep + download baseline PBP + list slate)**
+
+Expected outputs:
+- `data/processed/slates/slate_d1_YYYY-MM-DD.csv` / `.json`
+- `data/processed/selected_games/selected_games_YYYY-MM-DD.json`
+- `data/processed/baselines/lastN_<window>_YYYY-MM-DD.json`
+
+## Step 2 — Run pregame prediction
+
+```powershell
+& "c:/NCAA Model/.venv/Scripts/python.exe" Scripts/predict_pregame_totals_cached_v1.py `
+  --window 5 `
+  --game "home-slug,away-slug,line,Label,tipoff"
+```
+
+Example:
+```powershell
+& "c:/NCAA Model/.venv/Scripts/python.exe" Scripts/predict_pregame_totals_cached_v1.py `
+  --window 5 `
+  --game "michigan-st,uconn,136.5,Michigan State vs UConn,7:45 PM CST"
+```
+
+First run after data change: ~7-10 min (cache miss, training)
+Repeat runs same day: seconds (cache hit)
+
+## Step 3 — Postgame results (fills ActualTotal for future training)
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File Scripts/vscode_task_runner.ps1 -Action postgame_missing
+```
+
+## Covers lines maintenance (run after adding new dates to workbook)
+
+```powershell
+& "c:/NCAA Model/.venv/Scripts/python.exe" Scripts/ncaab_historical_lines_covers_v1.py --since YYYY-MM-DD
+```
+
+Coverage health audit:
+```powershell
+& "c:/NCAA Model/.venv/Scripts/python.exe" Scripts/audit_covers_matching_v1.py --recent-dates 21 --out data/logs/covers_slug_audit.json
+```

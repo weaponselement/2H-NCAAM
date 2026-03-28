@@ -2,6 +2,11 @@
 
 This document describes the safe, staged integration of sportsbook market lines into the NCAA model.
 
+Current state note (March 2026):
+- Primary historical pregame line ingestion is the Covers scraper: `Scripts/ncaab_historical_lines_covers_v1.py`.
+- Staged SGO flow in this document remains supported as an optional/secondary ingestion path.
+- Both paths write to the same canonical store: `data/processed/market_lines/canonical_lines.csv`.
+
 ## Architecture: Three-Phase Pipeline
 
 ### Phase 1: Staging (Safe Matcher)
@@ -63,9 +68,8 @@ sgo_event_id, source_file, staged_timestamp
 ### Phase 3: Feature Integration
 **Files Modified:**
 - [Scripts/model_feature_utils.py](Scripts/model_feature_utils.py)
-- [Scripts/tune_totals_spreads_v1.py](Scripts/tune_totals_spreads_v1.py)
-- [Scripts/update_all_predictions_ml.py](Scripts/update_all_predictions_ml.py)
 - [Scripts/step4b_feature_report_from_file_v5_test.py](Scripts/step4b_feature_report_from_file_v5_test.py)
+- [Scripts/predict_pregame_totals_cached_v1.py](Scripts/predict_pregame_totals_cached_v1.py)
 
 The pipeline now automatically:
 1. Loads canonical market lines at startup
@@ -82,7 +86,7 @@ The pipeline now automatically:
 
 - `market_total_close`: closing game total from sportsbook
   - Encodes market consensus on scoring pace/environment
-  - Correlates with halftime totals
+  - Encodes market consensus on expected scoring pace
   - Default: 150.0
 
 - `market_home_implied_prob`: derived from closing home moneyline
@@ -92,12 +96,12 @@ The pipeline now automatically:
 
 ## Feature Availability Rule
 
-**Only add features at prediction time if they can be fetched live.**
+**Only add features at prediction time if they can be fetched pre-tip.**
 
-- ✅ Pregame spread, total, ML → available at halftime → safe to train
-- ❌ 2H total → only available after games start → do not train yet
+- ✅ Pregame spread, total, ML → available pre-tip → used by current model
+- ❌ 2H total → 2H model is retired; do not train or plan for this field
 
-Current policy: train only pregame market features. 2H lines reserved for Phase Two if live halftime market fetching is confirmed.
+Current policy: train only pregame market features. `total_2h` is not used.
 
 ## Workflow: Getting SGO Data Into Training
 
@@ -143,19 +147,17 @@ Open `data/processed/market_lines/sgo_stage_real_data_2026_03_22.csv` and check:
   --input "data/processed/market_lines/sgo_stage_*.json"
 ```
 
-### Step 5: Retrain
+### Step 5: Retrain Pregame Cache
 ```powershell
-& "c:/NCAA Model/.venv/Scripts/python.exe" "c:/NCAA Model/Scripts/tune_totals_spreads_v1.py"
+& "c:/NCAA Model/.venv/Scripts/python.exe" "c:/NCAA Model/Scripts/predict_pregame_totals_cached_v1.py" --force-retrain --window 5
 ```
 
-Training now includes `market_spread_home_close`, `market_total_close`, `market_home_implied_prob`.
+Retraining incorporates the newly merged market lines. Market features (`market_spread_home_close`, `market_total_close`, `market_home_implied_prob`) are loaded automatically.
 
-### Step 6: Live Prediction
+### Step 6: Live Prediction (same script, uses cache)
 ```powershell
-& "c:/NCAA Model/.venv/Scripts/python.exe" "c:/NCAA Model/Scripts/update_all_predictions_ml.py"
+& "c:/NCAA Model/.venv/Scripts/python.exe" "c:/NCAA Model/Scripts/predict_pregame_totals_cached_v1.py" --window 5 --game "team_a,team_b,TOTAL"
 ```
-
-Live predictions automatically load canonicallines and use market features.
 
 ## Troubleshooting
 
@@ -163,6 +165,12 @@ Live predictions automatically load canonicallines and use market features.
 - Check: does `data/processed/market_lines/canonical_lines.csv` exist?
 - If not, run the merge script first
 - If it exists, check it's not empty
+
+If using Covers path (no staged SGO files), run:
+
+```powershell
+& "c:/NCAA Model/.venv/Scripts/python.exe" "c:/NCAA Model/Scripts/ncaab_historical_lines_covers_v1.py" --since YYYY-MM-DD
+```
 
 ### Feature shape mismatch in training
 - The model was trained with market features, but you're using it without them loaded
@@ -172,6 +180,8 @@ Live predictions automatically load canonicallines and use market features.
 - Use the detailed CSV from step 1 to identify mismatches
 - Add to `SGO_TO_SDIO` dictionary in [Scripts/stage_market_lines_sgo_v1.py](Scripts/stage_market_lines_sgo_v1.py) line 30
 - Re-run staging with new mapping
+
+For Covers path mismatches, add/update overrides in `slug_from_covers()` in `Scripts/ncaab_historical_lines_covers_v1.py`.
 
 ## Safety Guarantees
 
@@ -192,6 +202,10 @@ Live predictions automatically load canonicallines and use market features.
    - Missing market lines fall back to sensible defaults
    - Models retrain with defaults if canonical_lines.csv unavailable
    - No crashes, just reduced signal
+
+5. **Shared canonical schema**
+  - Canonical fields are stable across Covers and SGO ingestion.
+  - `sgo_event_id` is retained for compatibility and may contain non-SGO source IDs (for example `covers-<id>`).
 
 ## Next Steps
 

@@ -2,6 +2,11 @@
 
 This repo should treat sportsbook lines as staged data first and model features second.
 
+Compatibility note (March 2026):
+- Canonical schema is shared across ingestion paths.
+- Historical pregame ingestion currently uses Covers scraper data.
+- The field name `sgo_event_id` remains for backward compatibility and may store provider-specific IDs (for example `covers-<id>`).
+
 ## Safety Rule
 
 Never write external line data straight into the workbook from raw provider names.
@@ -76,8 +81,7 @@ Start with pregame market priors only:
 
 Derived fields are preferred over raw price fields when possible.
 
-## Hold For Phase Two
+## total_2h Field
 
-Do not train on `total_2h` unless the live halftime production flow can fetch that market at prediction time.
-
-Historical availability alone is not enough.
+`total_2h` is retained in the schema for backward compatibility but is **not used by the current pregame model**.
+The 2H halftime model is permanently retired. Do not train on `total_2h`.
