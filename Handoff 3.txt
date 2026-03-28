@@ -1,0 +1,72 @@
+NCAA MODEL HANDOFF - 2026-03-26
+
+Checkpoint commit
+- Commit: 0756623
+- Message: Checkpoint: preserve market-lines baseline and add trigger cohort analysis scaffold
+
+What was done in this checkpoint
+1) Preserved and revalidated current best baseline (market-lines enabled)
+- Baseline remains:
+  - 2H hit: 64.4%
+  - Total hit: 64.3%
+  - 2H MAE: 3.649
+  - Total MAE: 3.649
+- Total strategy remains derived_2h.
+
+2) Added trigger-analysis scaffold for selective wagering
+- Added script: Scripts/analyze_trigger_cohorts_v1.py
+- Purpose: evaluate historical hit rates by cohorts/triggers so user can bet only on high-success situations instead of all games.
+- Current script status: scaffold complete, but running it via one terminal session hit a Windows/Python terminal mode issue earlier in chat. Terminal was recovered later. Script may need a quick rerun/cleanup in a fresh shell.
+
+3) Kept production code and model artifacts in sync
+- Updated and committed current production files used for tune/update/report paths.
+- Updated model artifacts in models/ from the restored baseline training run.
+
+Files in commit
+- NEXT_STEPS_ONE_BAND.md
+- Scripts/analyze_trigger_cohorts_v1.py
+- Scripts/model_feature_utils.py
+- Scripts/step4b_feature_report_from_file_v5_test.py
+- Scripts/tune_totals_spreads_v1.py
+- Scripts/update_all_predictions_ml.py
+- models/actual2h_model.pkl
+- models/actualmargin_model.pkl
+- models/actualtotal_model.pkl
+- models/model_error_stats.json
+- models/model_strategy.json
+
+Important experiment outcomes from this session
+- Rejected: home_days_rest/away_days_rest (degraded workbook to 63.2%/63.2%, MAE 3.660).
+- Rejected: neutral_court flag (importance 0.000 across targets).
+- Skipped: rank features (only 11.8% workbook coverage).
+- Rejected: market-gap interaction features (degraded workbook to 63.6%/63.6%, MAE 3.665).
+- Reverted each failed pass and restored baseline.
+
+Current repo state right after commit
+- Commit created successfully at 0756623.
+- There are still unrelated/untracked files in working tree not included in this checkpoint (intentional).
+
+How to resume in a new chat
+1) Verify baseline still intact
+- Run:
+  - python Scripts/tune_totals_spreads_v1.py
+  - python Scripts/update_all_predictions_ml.py
+- Confirm workbook metrics are still ~64.4/64.3 and MAE 3.649.
+
+2) Complete trigger-cohort workflow (recommended next step)
+- Run/fix Scripts/analyze_trigger_cohorts_v1.py in a clean shell.
+- Produce trigger table with at least:
+  - sample size n
+  - 2H hit %
+  - total hit %
+- Select production trigger rules with guardrails such as:
+  - n >= 40
+  - target hit >= 80% on chosen side
+- Wire trigger gate into halftime flow so output includes actionable games only.
+
+3) Keep strict acceptance rule
+- Only keep changes that beat baseline on workbook gate, not just holdout.
+
+Quick context for next agent
+- User preference: do not bet every game; wants selective, high-confidence trigger-based plays after halftime.
+- Priority objective now: operational filter quality over global model changes.

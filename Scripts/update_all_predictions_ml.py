@@ -3,7 +3,7 @@ from pathlib import Path
 import pickle
 import json
 
-from model_feature_utils import build_feature_vector, load_team_stats, load_market_lines, load_neutral_court_games, load_rest_context, parse_halftime_score, range_half_widths_for_halftime_total, resolve_team_stats
+from model_feature_utils import build_feature_vector, load_last4_pbp_priors, load_team_stats, load_market_lines, load_neutral_court_games, load_rest_context, parse_halftime_score, range_half_widths_for_halftime_total, resolve_team_stats
 from step4b_feature_report_from_file_v5_test import load_game_pbp_features
 
 # Load models
@@ -71,6 +71,11 @@ rest_context = load_rest_context(data_root=data_root)
 # Load neutral court game IDs
 neutral_court_games = load_neutral_court_games(data_root=data_root)
 
+# Load date-keyed last4 historical PBP priors
+last4_pbp_priors_by_date = {}
+for date_str in team_stats_cache.keys():
+    last4_pbp_priors_by_date[date_str] = load_last4_pbp_priors(date_str, data_root=data_root)
+
 # Update predictions
 updated = 0
 for i, row in enumerate(rows[1:], start=2):  # start=2 for 1-based row
@@ -115,6 +120,7 @@ for i, row in enumerate(rows[1:], start=2):  # start=2 for 1-based row
         away_team_seo=away_team,
         rest_context=rest_context,
         neutral_court_games=neutral_court_games,
+        last4_pbp_priors=last4_pbp_priors_by_date.get(date_str, {}),
     )
 
     def predict_target(model_key):

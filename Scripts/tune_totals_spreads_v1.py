@@ -7,7 +7,7 @@ from openpyxl import load_workbook
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_absolute_error
 
-from model_feature_utils import FEATURE_NAMES, build_feature_vector, load_team_stats, load_market_lines, load_neutral_court_games, load_rest_context, parse_halftime_score, resolve_team_stats
+from model_feature_utils import FEATURE_NAMES, build_feature_vector, load_last4_pbp_priors, load_team_stats, load_market_lines, load_neutral_court_games, load_rest_context, parse_halftime_score, resolve_team_stats
 from step4b_feature_report_from_file_v5_test import load_game_pbp_features
 
 path = Path('logs/NCAAM Results.xlsx')
@@ -46,6 +46,12 @@ print('loaded rest context for', len(rest_context), 'teams')
 # Load neutral court game IDs
 neutral_court_games = load_neutral_court_games()
 print('loaded neutral court games:', len(neutral_court_games))
+
+# Load date-keyed last4 historical PBP priors
+last4_pbp_priors_by_date = {}
+for d in dates:
+    last4_pbp_priors_by_date[d] = load_last4_pbp_priors(d, data_root=data_root)
+print('loaded last4 historical pbp priors for', len(last4_pbp_priors_by_date), 'dates')
 
 
 def safe_float(value):
@@ -96,6 +102,7 @@ for r in data:
             away_team_seo=away_team,
             rest_context=rest_context,
             neutral_court_games=neutral_court_games,
+            last4_pbp_priors=last4_pbp_priors_by_date.get(date, {}),
         )
         r.update(feature_dict)
         r['model_features'] = feature_vector
@@ -144,19 +151,27 @@ for target in targets:
     test_X = [r['model_features'] for r in test]
     test_y = [r[target] for r in test]
 
-    model = RandomForestRegressor(n_estimators=100, random_state=42)
-    model.fit(train_X, train_y)
-    pred_y = model.predict(test_X)
-    mae = mean_absolute_error(test_y, pred_y)
-    test_predictions[target] = pred_y
-    print(f'test MAE: {mae:.2f}')
-
     if target == 'ActualMargin':
         baseline_mae = 7.13
     elif target in ['Actual2H', 'ActualTotal']:
         baseline_mae = 10.33
-    print(f'baseline MAE: {baseline_mae:.2f}')
-    print(f'improvement: {baseline_mae - mae:.2f}')
+
+    model = RandomForestRegressor(n_estimators=100, random_state=42)
+    model.fit(train_X, train_y)
+
+    if test_X:
+        pred_y = model.predict(test_X)
+        mae = mean_absolute_error(test_y, pred_y)
+        test_predictions[target] = pred_y
+        print(f'test MAE: {mae:.2f}')
+        print(f'baseline MAE: {baseline_mae:.2f}')
+        print(f'improvement: {baseline_mae - mae:.2f}')
+    else:
+        # No holdout rows in this slice; keep conservative baseline MAE values.
+        mae = baseline_mae
+        test_predictions[target] = []
+        print('test MAE: n/a (no holdout rows in split)')
+        print(f'using baseline MAE fallback: {mae:.2f}')
 
     if target == 'ActualTotal':
         direct_total_mae = mae
@@ -178,7 +193,7 @@ else:
 total_strategy = 'derived_2h' if derived_total_mae is not None and direct_total_mae is not None and derived_total_mae <= direct_total_mae else 'direct_model'
 chosen_total_mae = derived_total_mae if total_strategy == 'derived_2h' else direct_total_mae
 error_stats['ActualTotal'] = chosen_total_mae
-print(f'Chosen total strategy: {total_strategy} (MAE {chosen_total_mae:.2f})')
+print(f'Chosen total strategy: {total_strategy} (MAE {float(chosen_total_mae):.2f})')
 
 # Persist error stats for prediction range logic
 error_path = Path('models') / 'model_error_stats.json'

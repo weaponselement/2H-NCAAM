@@ -1,0 +1,81 @@
+NCAA MODEL CHECKPOINT - DIRECTIONAL PIVOT
+Date: 2026-03-26
+
+Summary
+- We pivoted from pure model-feature chasing to a two-layer approach:
+  1) Keep the current best prediction baseline
+  2) Add a betting decision trigger gate (ACTIONABLE vs PASS)
+
+Current best prediction baseline context
+- Baseline reference before decision-layer pivot:
+  - 2H hit: 64.4%
+  - Total hit: 64.3%
+  - 2H MAE: 3.649
+  - Total MAE: 3.649
+- Repeated feature passes (rest context, neutral-court, market-gap interactions, last4 PBP prior pass) did not beat workbook gate and were rejected.
+
+Important data understanding reached
+- Historical last4 references exist and were audited.
+- last4 references:
+  - unique referenced gameIDs: 8653
+  - with PBP on disk: 1944
+  - missing: 6709
+  - coverage: 22.47%
+- Workbook gameIDs currently have full PBP availability in local nested layout under data/raw/pbp_live/<gameID>/...
+
+Directional pivot implementation done
+- New script added:
+  - Scripts/trigger_gate_from_workbook_v1.py
+- Purpose:
+  - Label each game row as ACTIONABLE or PASS based on historically strong trigger cohorts
+  - Write gate columns to logs/NCAAM Results.xlsx (Game_Log):
+    - TriggerDecision
+    - TriggerName
+    - TriggerHistHit
+    - TriggerHistN
+
+Trigger gate outcome (validated)
+- Using current workbook rows:
+  - ALL: n=1426, 2H=64.2%, Total=64.1%
+  - ACTIONABLE: n=399, 2H=73.4%, Total=73.4%
+  - PASS: n=1027, 2H=60.6%, Total=60.5%
+- Actionable coverage: 399 / 1427 rows (28.0%)
+- This is a meaningful practical lift for selective betting.
+
+What was tested and rejected in this session (model-side)
+- Rest features (home_days_rest, away_days_rest): degraded workbook gate.
+- Neutral-court flag: near-zero importance and no gain.
+- Market-gap interaction features: degraded workbook gate.
+- Last4 historical PBP priors integrated into training/prediction: degraded to approx 64.2/64.1 and MAE 3.688/3.690 vs baseline.
+
+How to rerun trigger gate
+1) Activate environment
+   - .venv\Scripts\Activate.ps1
+2) Run gate script
+   - python Scripts/trigger_gate_from_workbook_v1.py
+3) Validate segment performance quickly (already used in session)
+   - evaluate ALL vs ACTIONABLE vs PASS hit rates from workbook
+
+Recommended next steps (for new chat)
+1) Keep prediction baseline stable; do not merge rejected feature passes.
+2) Evolve decision layer to v2:
+   - add foul-pressure-aware triggers (from derived PBP foul proxies)
+   - add market archetype triggers (spread/total buckets)
+   - include minimum sample-size guardrails per trigger
+3) Add production output formatting:
+   - halftime run should print only ACTIONABLE rows by default
+   - include trigger reason + historical hit + sample size
+4) Evaluate trigger portfolio:
+   - optimize for usable slate coverage vs hit rate
+   - avoid overfitting tiny n cohorts even if 80%+
+
+Files most relevant to this pivot
+- Scripts/trigger_gate_from_workbook_v1.py
+- logs/NCAAM Results.xlsx (Game_Log trigger columns)
+- Scripts/tune_totals_spreads_v1.py
+- Scripts/update_all_predictions_ml.py
+- Scripts/model_feature_utils.py
+
+Notes for continuity
+- User objective is practical betting selectivity, not wagering every game.
+- Directional decision: prioritize decision-layer trigger quality over further low-yield feature expansion in RF core model.

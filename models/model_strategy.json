@@ -1,7 +1,7 @@
 {
   "total_prediction_strategy": "derived_2h",
-  "direct_total_mae": 10.745721153846155,
-  "derived_total_mae": 10.437259615384617,
+  "direct_total_mae": 10.33,
+  "derived_total_mae": 10.33,
   "feature_names": [
     "home_lead",
     "abs_home_lead",
@@ -65,6 +65,20 @@
     "late_scoring_share_gap",
     "market_spread_home_close",
     "market_total_close",
-    "market_home_implied_prob"
+    "market_home_implied_prob",
+    "home_last4_three_rate",
+    "away_last4_three_rate",
+    "home_last4_paint_share",
+    "away_last4_paint_share",
+    "home_last4_ft_rate",
+    "away_last4_ft_rate",
+    "home_last4_turnover_rate",
+    "away_last4_turnover_rate",
+    "home_last4_orb_rate",
+    "away_last4_orb_rate",
+    "home_last4_possessions_per_team_1h",
+    "away_last4_possessions_per_team_1h",
+    "home_last4_pbp_coverage_count",
+    "away_last4_pbp_coverage_count"
   ]
 }

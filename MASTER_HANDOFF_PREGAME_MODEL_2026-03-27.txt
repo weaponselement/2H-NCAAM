@@ -1,0 +1,353 @@
+NCAAM MODEL - MASTER HANDOFF (PREGAME FOCUS)
+Last updated: 2026-03-27
+Owner intent: Preserve current progress, avoid regression, resume quickly in future sessions and next season.
+
+======================================================================
+1) EXECUTIVE SUMMARY (READ THIS FIRST)
+======================================================================
+
+Current strategic focus is PRE-GAME totals prediction and directional O/U decision support.
+
+Live 2H betting expansion is DE-PRIORITIZED for now.
+Do not steer new sessions back into broad live 2H redesign unless explicitly requested.
+
+The current production-ready workflow for pregame totals is now cache-backed:
+- First run after data changes trains (slow, about 7-10 minutes).
+- Repeat runs reuse cached model (fast, seconds).
+
+This solved the major usability problem (retraining every run).
+
+Primary objective now:
+- Consistent, reproducible pregame predictions vs known line inputs.
+- Preserve statistical discipline and avoid accidental lookahead.
+- Build toward productization (paywall app/site) without changing core logic impulsively.
+
+
+======================================================================
+2) WHAT HAS BEEN RETIRED / DE-EMPHASIZED
+======================================================================
+
+These are not deleted, but they are NOT current north-star workstreams:
+
+A) Live halftime over-optimization as primary product direction.
+B) Chasing exact-point tight ranges as the main success metric.
+C) Re-running heavy pregame full retrains for every 1-2 game query.
+
+Important context:
+- Existing halftime pipeline remains in repo and functional.
+- Trigger gate logic remains available.
+- But current user direction is to focus on PRE-GAME model and clean reproducible pregame outputs.
+
+
+======================================================================
+3) WHAT IS THE ACTIVE DIRECTION RIGHT NOW
+======================================================================
+
+A) Pregame totals model prediction workflow
+- Input: team matchup + market total line.
+- Output: model total, signed gap vs line, directional lean (OVER/UNDER), and trigger tier.
+
+B) Cache-first execution
+- Uses a fingerprint to decide train vs reuse.
+- Reuses persisted model when source inputs are unchanged.
+
+C) Workflow simplification
+- One-click VS Code task added for cached pregame predictions.
+- Reduced operator confusion during short pre-tip windows.
+
+
+======================================================================
+4) KEY FILES TO KNOW (HIGH PRIORITY)
+======================================================================
+
+Core active files:
+- Scripts/predict_pregame_totals_cached_v1.py
+- Scripts/vscode_task_runner.ps1
+- .vscode/tasks.json
+- Scripts/evaluate_pregame_total_model_v1.py
+- Scripts/evaluate_window_optimization_v1.py
+- Scripts/analyze_pregame_model_depth_v1.py
+- Scripts/model_feature_utils.py
+
+Cache artifacts:
+- models/pregame_total_cache/pregame_total_rf_w5.pkl
+- models/pregame_total_cache/pregame_total_rf_w5.meta.json
+
+Primary data dependencies:
+- logs/NCAAM Results.xlsx
+- data/processed/market_lines/canonical_lines.csv
+- data/processed/baselines/lastN_5_YYYY-MM-DD.json (and related lastN files)
+- data/raw/pbp_live/... (priors/features support)
+
+Runbook/doc files:
+- README.md (contains current runbook section and production vs experimental split)
+- This file: MASTER_HANDOFF_PREGAME_MODEL_2026-03-27.txt
+
+
+======================================================================
+5) WHAT WAS JUST IMPLEMENTED (IMPORTANT)
+======================================================================
+
+1) New cache-backed pregame predictor created:
+- Scripts/predict_pregame_totals_cached_v1.py
+
+2) Cache behavior validated:
+- First run (cache miss): training completed around 10.04 minutes.
+- Repeat run (cache hit): approximately 1.88 seconds.
+
+3) VS Code runner wired:
+- New action in Scripts/vscode_task_runner.ps1: pregame_cached
+- New task in .vscode/tasks.json:
+  NCAAM: Pregame totals (cached model) [READ-ONLY]
+- Prompt-driven game spec input added for one or two games.
+
+4) Operational documentation improved:
+- README top section now differentiates what to use daily vs research scripts.
+
+
+======================================================================
+6) EXACT OPERATOR COMMANDS
+======================================================================
+
+A) Preferred one-click method (VS Code Tasks UI)
+Task label:
+NCAAM: Pregame totals (cached model) [READ-ONLY]
+
+Prompts:
+- pregameWindow (default 5)
+- pregameGameSpec1 (required)
+- pregameGameSpec2 (optional)
+
+Game spec format (critical):
+home,away,line,label,tipoff
+
+Example:
+michigan-st,uconn,136.5,Michigan State vs UConn,7:45 PM CST
+
+
+B) Direct terminal method (same logic)
+powershell -NoProfile -ExecutionPolicy Bypass -File Scripts/vscode_task_runner.ps1 -Action pregame_cached -Window 5 -GameSpec "michigan-st,uconn,136.5,Michigan State vs UConn,7:45 PM CST" -GameSpec2 "tennessee,iowa-st,139.5,Tennessee vs Iowa State,9:25 PM CST"
+
+
+C) Script-only method (bypass PS runner)
+c:/NCAA Model/.venv/Scripts/python.exe Scripts/predict_pregame_totals_cached_v1.py --window 5 --game "michigan-st,uconn,136.5,Michigan State vs UConn,7:45 PM CST" --game "tennessee,iowa-st,139.5,Tennessee vs Iowa State,9:25 PM CST"
+
+
+D) Force retrain when intentionally needed
+Add: --force-retrain
+
+Use this only when source data has changed and you want a fresh model immediately.
+
+
+======================================================================
+7) HOW CACHE INVALIDATION WORKS (OPERATOR MENTAL MODEL)
+======================================================================
+
+The cached predictor computes a fingerprint from major inputs and script version details.
+If fingerprint matches existing cache metadata:
+- Cache HIT -> fast load and predict.
+
+If fingerprint differs or cache missing:
+- Cache MISS -> full train then save cache.
+
+Expected runtime pattern:
+- Miss: ~7-10 minutes (can vary with machine and I/O).
+- Hit: seconds.
+
+
+======================================================================
+8) CURRENT STATISTICAL POSTURE (DO NOT MISINTERPRET)
+======================================================================
+
+Important distinctions:
+1) Halftime-informed models and pregame models are different products.
+2) Pregame edge is harder; evaluate honestly on pre-tip information only.
+3) Prior analyses showed selective thresholding matters more than raw MAE obsession.
+
+Core discipline:
+- Measure directional correctness vs line where relevant.
+- Prefer policy-driven bet filters (gap thresholds, sample minimums).
+- Avoid over-claiming from small cohorts.
+
+Do not promise unrealistic sustained hit rates.
+Use conservative language and forward validation principles.
+
+
+======================================================================
+9) KNOWN RISKS / CAVEATS
+======================================================================
+
+A) Naming/slug mismatch risk
+- Team SEO key mismatch can break matchup lookups.
+- Always use workbook-style slugs (example: michigan-st, iowa-st, uconn/connecticut depending dataset conventions).
+
+B) Data freshness risk
+- If baselines/lines/workbook are stale, predictions can still run but context may be outdated.
+
+C) Market semantics risk
+- Some historical evaluations used pregame closing-like lines from Covers source.
+- Do not conflate that with live in-play line evaluations.
+
+D) Scope drift risk
+- New sessions can accidentally drift back into live 2H architecture changes.
+- Keep focus on pregame unless user explicitly pivots.
+
+
+======================================================================
+10) NEXT-SEASON RESTART PLAN (NO GUESSWORK)
+======================================================================
+
+If returning months later (including next season), follow this order:
+
+Step 1: Environment sanity
+- Confirm .venv works.
+- Confirm workbook and key data files are present.
+
+Step 2: Data refresh for new season
+- Run slate prep and baseline flows for target date(s).
+- Ensure market lines and baseline files exist for the dates you will predict.
+
+Step 3: Cache bootstrap
+- Run cached pregame task once (expect cache miss/training).
+- Confirm cache files appear in models/pregame_total_cache.
+
+Step 4: Cache-hit confirmation
+- Run same task again with same inputs.
+- Confirm cache HIT in output and fast runtime.
+
+Step 5: Statistical re-baseline
+- Run evaluator scripts on the newly expanded season data.
+- Re-establish policy thresholds with enough sample before production claims.
+
+Step 6: Freeze and operate
+- Freeze chosen thresholds/model config for a defined evaluation period.
+- Avoid constant parameter churn during operation windows.
+
+
+======================================================================
+11) WHAT TO DO FIRST IN ANY NEW CHAT SESSION
+======================================================================
+
+Prompt the new session to do these actions in order:
+
+1) Read this file fully.
+2) Confirm current objective remains pregame model only.
+3) Run the cached pregame task for a known matchup and confirm cache status.
+4) Report:
+   - cache status (HIT/MISS)
+   - runtime
+   - prediction output block
+5) If MISS unexpectedly repeats, debug fingerprint inputs and cache metadata.
+
+Suggested quick check command:
+powershell -NoProfile -ExecutionPolicy Bypass -File Scripts/vscode_task_runner.ps1 -Action pregame_cached -Window 5 -GameSpec "michigan-st,uconn,136.5,Michigan State vs UConn,7:45 PM CST"
+
+
+======================================================================
+12) ROADMAP: HOW TO HONE FURTHER (PRIORITIZED)
+======================================================================
+
+Priority 1: Stability and repeatability
+- Keep cache pathway stable and observable.
+- Add lightweight structured output logging (prediction, line, gap, timestamp, model version).
+
+Priority 2: Policy hardening
+- Continue threshold policy evaluation (FULL/HALF/PASS) on expanding samples.
+- Add confidence bands for recommendation strength tied to sample depth.
+
+Priority 3: Better model governance
+- Version model snapshots explicitly.
+- Record training window/date span and feature set fingerprint.
+- Track performance drift week-over-week.
+
+Priority 4: Productization prep (paywall app/site)
+- Create API-like wrapper around cached predictor.
+- Add request validation (slug, line, date format).
+- Return deterministic JSON response schema.
+- Persist all requests/predictions for auditability.
+
+Priority 5: Controlled feature expansion
+- Add features only with strict forward-validation gains.
+- Avoid broad feature churn without policy-level improvement.
+
+
+======================================================================
+13) PRODUCTIZATION DIRECTION (APP/WEBSITE)
+======================================================================
+
+Recommended architecture path:
+
+A) Prediction service layer
+- Input payload: matchup, line, window, optional metadata.
+- Output payload: model_total, baseline_total, gap, direction, trigger_tier, model_version, cache_status.
+
+B) Persistence and audit
+- Store every prediction request and response.
+- Include line source and timestamp.
+- Keep immutable logs for post-hoc performance tracking.
+
+C) Access control/paywall
+- Separate auth/subscription from model logic.
+- Keep model execution stateless where possible.
+
+D) Monitoring
+- Alert on repeated cache misses.
+- Alert on runtime spikes and missing data dependencies.
+
+E) Safety in messaging
+- No guaranteed win claims.
+- Show uncertainty and policy rationale clearly.
+
+
+======================================================================
+14) TROUBLESHOOTING QUICK LIST
+======================================================================
+
+Issue: Prediction script retrains every time.
+- Check cache metadata file exists.
+- Check fingerprint inputs changed (workbook mtime/size, lines file mtime/size, latest baseline info, script version).
+- Use --show-cache-info for diagnostics.
+
+Issue: Team not found / bad matchup.
+- Verify SEO team keys exactly as used in workbook/baselines.
+- Use known slugs from prior successful runs.
+
+Issue: Slow run unexpectedly.
+- If cache hit expected, verify no data files touched recently.
+- Confirm no force-retrain flag present.
+
+Issue: Inconsistent numbers across sessions.
+- Ensure same window and same line values.
+- Ensure same underlying data snapshot and no mid-run file changes.
+
+
+======================================================================
+15) NON-NEGOTIABLE OPERATING PRINCIPLES
+======================================================================
+
+1) Keep pregame focus unless explicitly changed.
+2) Prefer cache-backed runs for operational predictions.
+3) Keep validation honest (time-aware, no leakage).
+4) Do not silently change thresholds in production messaging.
+5) Log everything needed for reproducibility and accountability.
+
+
+======================================================================
+16) QUICK REFERENCE (COPY/PASTE BLOCK)
+======================================================================
+
+Primary task (VS Code):
+NCAAM: Pregame totals (cached model) [READ-ONLY]
+
+Game spec format:
+home,away,line,label,tipoff
+
+Examples:
+michigan-st,uconn,136.5,Michigan State vs UConn,7:45 PM CST
+tennessee,iowa-st,139.5,Tennessee vs Iowa State,9:25 PM CST
+
+Direct runner command:
+powershell -NoProfile -ExecutionPolicy Bypass -File Scripts/vscode_task_runner.ps1 -Action pregame_cached -Window 5 -GameSpec "michigan-st,uconn,136.5,Michigan State vs UConn,7:45 PM CST" -GameSpec2 "tennessee,iowa-st,139.5,Tennessee vs Iowa State,9:25 PM CST"
+
+
+END OF MASTER HANDOFF

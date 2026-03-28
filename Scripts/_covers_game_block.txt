@@ -1,0 +1,122 @@
+"gamebox-header" class="gamebox-header rounded-top text-white px-3 py-2 w-100 lh-base m-0 fst-normal">
+    <strong class="text-uppercase">Lafayette @ Holy Cross</strong> 
+</p>
+        
+
+<div class="article-content p-3">
+    
+<div class="d-flex flex-row justify-content-between align-items-start align-items-xl-center mb-2">
+        <a class="gamebox-team-anchor text-decoration-none border-0 lh-1 d-inline-flex flex-row justify-content-start align-items-center"
+           href="/sport/basketball/ncaab/teams/main/lafayette-leopards"
+           data-linkcont="-scoreboard-page-postgame-team-name-click">
+            
+<img 
+    class="team-logo-box d-inline-block me-2" 
+    loading="lazy" 
+    src="https://img.covers.com/covers/data/svg_logos/ncaab/laf.svg" 
+    data-league="ncaab" 
+    data-abbreviation="laf" 
+    alt="Lafayette" 
+    width="40" 
+    height="40" 
+    onerror="this.outerHTML=`<span class='imgFallback'>LA</span>`" 
+/>
+            <div class="d-inline-flex flex-column justify-content-start align-items-start">
+                <span class="text-nowrap d-inline-flex align-items-center">LAF</span>
+                    <strong class="team-score away position-relative fs-5 d-xl-none d-inline-block bg-white lh-1 basketball winner">86</strong>
+            </div>
+        </a>
+
+    <div class="gamebox-time text-center lh-1 m-1 m-xl-0">
+            <div class="d-flex flex-row justify-content-center align-items-center gap-3">
+                <strong class="team-score position-relative d-none d-xl-inline-block fs-3 lh-1 basketball winner">86</strong>
+                <span>
+
+
+<strong class="d-inline text-white lh-base text-uppercase covers-badge post-game-status">Final</strong></span>
+                <strong class="team-score position-relative d-none d-xl-inline-block fs-3 lh-1 basketball ">83</strong>
+            </div>
+    </div>
+
+
+        <a class="gamebox-team-anchor text-decoration-none lh-1 border-0 d-inline-flex flex-row justify-content-end align-items-center"
+           href="/sport/basketball/ncaab/teams/main/holy-cross-crusaders"
+           data-linkcont="-scoreboard-page-postgame-team-name-click">
+           <div class="d-inline-flex flex-column justify-content-start align-items-end">
+                <span class="text-nowrap d-inline-flex align-items-center">HC</span>
+                    <strong class="team-score home position-relative fs-5 d-xl-none d-inline-block bg-white lh-1 basketball text-primary">83</strong>
+            </div>
+            
+<img 
+    class="team-logo-box d-inline-block ms-2" 
+    loading="lazy" 
+    src="https://img.covers.com/covers/data/svg_logos/ncaab/hc.svg" 
+    data-league="ncaab" 
+    data-abbreviation="hc" 
+    alt="Holy Cross" 
+    width="40" 
+    height="40" 
+    onerror="this.outerHTML=`<span class='imgFallback'>HC</span>`" 
+/>
+        </a>
+</div>
+
+    <div class="trending-and-cover-by-container basketball d-flex flex-row justify-content-between align-items-start fs-7 mb-xl-5">
+            
+    <p class="mb-0">Cover By &#x2B;4.5 <br /> <span>LAF &#x2B;1.5 </span></p>
+
+            
+<p class="mb-0">o/u Margin <br /> 
+    <span>o29.5</span>
+</p>
+    </div>
+
+    <div class="d-grid gap-xl-5 my-3 scoring-and-betgraph-btn-container">
+        
+    <table class="d-none d-xl-table w-100 fs-8 text-center">
+        <thead>
+            <tr>
+                <th scope="col"><span class="sr-only">Team</span></th>
+                    <th scope="col">1</th>
+                    <th scope="col">2</th>
+                    <th scope="col">Score</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <th class="text-start py-1 px-2 ps-4" style="--background: url('https://img.covers.com/covers/data/svg_logos/ncaab/laf.svg')">LAF</th>
+                
+    <td class="py-1 px-2 ">33</td>
+    <td class="py-1 px-2 ">53</td>
+    <td class="py-1 px-2 highlight-score">86</td>
+
+            </tr>
+            <tr>
+                <th class="text-start py-1 px-2 ps-4" style="--background: url('https://img.covers.com/covers/data/svg_logos/ncaab/hc.svg')">HC</th>
+                
+    <td class="py-1 px-2 ">49</td>
+    <td class="py-1 px-2 ">34</td>
+    <td class="py-1 px-2 ">83</td>
+
+            </tr>
+        </tbody>
+        
+    </table>
+
+
+            <p class="m-0 summary-box border rounded py-2 pe-2 ps-5">Lafayette covered the spread of <strong>+1.5</strong>. The total score of 169 was <strong>over 139.5</strong>.</p>
+    </div>
+
+
+        
+    <div class="collapse" id="game-ncaab-371078">
+        <div class="betgraph-box position-relative fs-8">
+            <div id="betgraph-ncaab-371078"></div>
+            <button 
+                class="covers-CoversScoreboard-gameBox-BetGraph-CloseButton border-0 position-absolute bg-white p-2" 
+                type="button" 
+                data-bs-toggle="collapse"                    
+                data-bs-target="#game-ncaab-371078" 
+                aria-expanded="false" 
+                aria-controls="game-ncaab-371078" 
+                d

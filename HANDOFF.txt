@@ -1,0 +1,309 @@
+================================================================================
+NCAA ENGINE — HANDOFF DOCUMENT
+Last updated: March 25, 2026
+================================================================================
+
+WHAT THIS PROJECT IS
+---------------------
+An NCAAB prediction model that forecasts: total points, 2H total, winner, and
+winner margin. The model runs at halftime using play-by-play data fetched from
+SportsDataIO (SDIO). There are ~1422 games in the dataset (as of March 2026).
+The model has hit an improvement ceiling and the next step is incorporating
+sportsbook closing lines as features.
+
+Two immediate goals:
+  1. Daily workflow: fetch closing lines for each day's games and log to Excel
+  2. Historical backfill: fetch closing lines for all ~1422 past games for backtesting
+
+
+================================================================================
+ENVIRONMENT
+================================================================================
+
+OS: Windows (PowerShell terminal inside VS Code)
+Python: 3.14.3
+Workspace: C:\Desktop Offline\NCAA Engine\
+
+Installed Python packages:
+  pip install requests openpyxl
+
+API: sportsgameodds.com (SGO) — v2
+API Key env var: SPORTS_API_KEY
+  - Set permanently with:
+      [System.Environment]::SetEnvironmentVariable("SPORTS_API_KEY", "YOUR_KEY_HERE", "User")
+  - Then fully RESTART VS Code (not just the terminal) for it to take effect
+  - Check it's set with: python -c "import os; print(os.environ.get('SPORTS_API_KEY'))"
+  - The key bb3bf0c3406971f82793a888c9cec1c9 was exposed during debugging — ROTATE IT
+    at sportsgameodds.com before continuing
+
+Data source for game results: SportsDataIO (SDIO)
+  - Game IDs and team slugs come from SDIO (e.g. "boston-college", "florida-st")
+  - SGO uses different team naming (e.g. "BOSTON_COLLEGE_NCAAB")
+  - The logger script handles the translation automatically
+
+
+================================================================================
+FILE STRUCTURE
+================================================================================
+
+C:\Desktop Offline\NCAA Engine\
+  scripts\
+    ncaab_lines_logger.py       ← PRIMARY DAILY USE — logs closing lines to Excel
+    ncaab_historical_lines.py   ← BACKFILL — fetch lines for past season by date range → CSV
+    ncaab_slate.py              ← OPTIONAL — view today's upcoming lines in terminal (tabular)
+    ncaab_lines.py              ← OLD — original Python port, not used anymore
+    ncaab_lines.ps1             ← OLD — original PowerShell script, not used anymore
+    logs\
+      NCAA Lines.xlsx           ← OUTPUT — closing lines keyed to SDIO GameID
+      NCAAM Results.xlsx        ← INPUT — prediction model results log (1412+ rows)
+  data\
+    historical_lines.csv        ← OUTPUT — historical lines from backfill script
+
+
+================================================================================
+SGO API — KEY FACTS
+================================================================================
+
+Base URL:  https://api.sportsgameodds.com/v2/events
+Auth:      ?apiKey=YOUR_KEY (query param, not header)
+
+Critical parameter corrections (errors found during debugging):
+  WRONG:  startDate / endDate       — silently ignored by API, returns wrong games
+  RIGHT:  startsAfter / startsBefore with ISO 8601: "2026-02-19T00:00:00Z"
+
+  WRONG:  oddsAvailable=true        — marks finalized games as false, blocks results
+  RIGHT:  omit for finalized games; the script filters by checking e.get("odds")
+
+Key parameters used:
+  leagueID=NCAAB
+  finalized=true                    (for historical/completed games)
+  startsAfter=YYYY-MM-DDTHH:MM:SSZ
+  startsBefore=YYYY-MM-DDTHH:MM:SSZ
+  oddID=<comma list>                (embed all lines in one call, no per-game calls)
+  includeOpenCloseOdds=true         (NOTE: does NOT return open lines for finalized
+                                     games — only closing lines are available)
+  limit=100
+  cursor=<nextCursor value>         (pagination — loop until no nextCursor returned)
+
+OddIDs used:
+  points-home-game-sp-home    home spread
+  points-away-game-sp-away    away spread
+  points-home-game-ml-home    home moneyline
+  points-away-game-ml-away    away moneyline
+  points-all-game-ou-over     game total
+  points-all-game-ou-under    game total (under)
+  points-all-2h-ou-over       2H total
+  points-all-2h-ou-under      2H total (under)
+
+API response field names (actual, verified by inspection):
+  odds[oddID].bookSpread        closing spread
+  odds[oddID].bookOdds          closing moneyline / odds
+  odds[oddID].bookOverUnder     closing over/under
+  (bookFair* fields are fallbacks if book fields are null)
+
+  results.game.home.points      final home score
+  results.game.away.points      final away score
+  results["1h"].home.points     halftime home score
+  results["1h"].away.points     halftime away score
+
+Rate limiting:
+  The /markets endpoint causes severe 429 errors — DO NOT use it
+  The /events endpoint with oddID list is one call per day, no rate limit issues
+  The historical script uses 2s sleep between day calls as a precaution
+
+UTC vs local time offset:
+  SGO dates are UTC. Evening US games (e.g. 8pm ET) fall on the NEXT UTC day.
+  Example: querying SGO 2026-02-19 returns games the Results file calls 2026-02-18
+  The logger script handles this transparently — it matches by team name, not date,
+  so the SDIO GameID and Date in the output are always correct.
+
+
+================================================================================
+TEAM NAME TRANSLATION (SGO → SDIO)
+================================================================================
+
+SGO format:  BRIGHAM_YOUNG_NCAAB  (uppercase, underscores, _NCAAB suffix)
+SDIO format: byu                  (lowercase, hyphens, shorthand)
+
+Normalization steps in the script:
+  1. Strip _NCAAB suffix
+  2. Lowercase, replace _ with -
+  3. Apply override map (SGO_TO_SDIO dict) for names that don't match even after norm
+  4. Apply blanket rule: -state → -st
+
+Known overrides (in ncaab_lines_logger.py SGO_TO_SDIO dict):
+  brigham-young         → byu
+  florida-international → fiu
+  uic                   → ill-chicago
+  usc                   → southern-california
+  bryant-university     → bryant
+  tennessee-martin      → ut-martin
+  louisiana-state       → lsu
+  north-carolina-state  → nc-state
+  texas-christian       → tcu
+  southern-methodist    → smu
+  central-florida       → ucf
+  florida-gulf-coast    → fgcu
+  mississippi           → ole-miss
+  louisiana-monroe      → la-monroe
+  omaha                 → neb-omaha
+  florida-atlantic      → fla-atlantic
+  east-tennessee        → east-tenn-st
+  southeast-missouri-state → se-missouri-st
+  southern-illinois     → southern-ill
+  middle-tennessee-state → middle-tenn
+  miami                 → miami-oh  (miami-fl has explicit suffix in SGO)
+
+If new UNMATCHED games appear, add the translation to the SGO_TO_SDIO dict.
+The fuzzy matcher (difflib) catches near-misses automatically at 75% threshold.
+
+
+================================================================================
+SCRIPT: ncaab_lines_logger.py  (DAILY USE)
+================================================================================
+
+PURPOSE:
+  Run after games are final. Fetches closing lines from SGO, matches each game
+  to NCAAM Results.xlsx by team name, writes to NCAA Lines.xlsx.
+
+USAGE:
+  python scripts/ncaab_lines_logger.py --date 2026-02-19
+  python scripts/ncaab_lines_logger.py          # defaults to yesterday
+
+OUTPUT FILE: scripts/logs/NCAA Lines.xlsx
+  Sheet name: Lines
+  Columns:
+    Date         - SDIO local date (matches Results.xlsx — correct despite UTC offset)
+    GameID       - SDIO numeric GameID (PRIMARY JOIN KEY to Results.xlsx)
+    Away         - SDIO away team slug
+    Home         - SDIO home team slug
+    Spread_Home  - Closing home spread (negative = home favored)
+    ML_Away      - Closing away moneyline (American odds, e.g. +150 or -130)
+    ML_Home      - Closing home moneyline
+    Total        - Closing game total
+    Total_2H     - Closing 2nd-half total
+    SGO_EventID  - SGO's event ID string (for debugging/re-querying)
+    Match_Status - MATCHED | FUZZY(details) | UNMATCHED
+
+SAFETY:
+  Re-run safe — checks existing GameIDs and skips duplicates.
+  UNMATCHED rows ARE written (with blank GameID) so nothing is silently lost.
+
+HOW TO JOIN to Results.xlsx in pandas:
+  import pandas as pd
+  results = pd.read_excel(r"...\NCAAM Results.xlsx", sheet_name="Game_Log")
+  lines   = pd.read_excel(r"...\NCAA Lines.xlsx",   sheet_name="Lines")
+  merged  = pd.merge(results, lines, on="GameID", how="left")
+
+TEST RESULTS (Feb 19, 2026):
+  32 SGO games fetched → 32/32 exact matches → all rows written correctly
+
+
+================================================================================
+SCRIPT: ncaab_historical_lines.py  (BACKFILL)
+================================================================================
+
+PURPOSE:
+  Walk a date range day by day, fetch all finalized NCAAB lines, write to CSV.
+  For backtesting the 1422-game dataset.
+
+USAGE:
+  python scripts/ncaab_historical_lines.py --start 2025-11-01 --end 2026-04-01
+  python scripts/ncaab_historical_lines.py --start 2026-02-17 --end 2026-02-17
+
+OUTPUT FILE: data/historical_lines.csv
+  Columns:
+    event_id, date, starts_at, home, away,
+    spread_home,          closing home spread
+    ml_home, ml_away,     closing moneylines
+    total, total_2h,      closing game totals
+    home_1h, away_1h,     halftime scores
+    home_score, away_score, final_total
+
+NOTE: This script outputs SGO team names (e.g. BOSTON_COLLEGE_NCAAB), NOT SDIO
+  slugs. You will need the same name translation logic from ncaab_lines_logger.py
+  to join this CSV to Results.xlsx. Consider extracting normalize_sgo() into a
+  shared module, or run the logger script instead of this one for backfill.
+
+SAFETY:
+  Re-run safe — skips event_ids already in the CSV.
+  ~2s sleep between day calls. Full season (~180 days) takes ~6 minutes.
+
+
+================================================================================
+SCRIPT: ncaab_slate.py  (OPTIONAL DAILY VIEW)
+================================================================================
+
+PURPOSE:
+  Preview upcoming (or any date's) DI NCAAB games and their current lines in
+  a terminal table. Useful pre-game to quickly see the slate.
+
+USAGE:
+  python scripts/ncaab_slate.py
+  python scripts/ncaab_slate.py --date 2026-02-17
+
+NOTE: Uses oddsAvailable filter has been removed — it was blocking finalized games.
+  DI/D3 filtering is handled by checking if the event has an odds object at all.
+
+
+================================================================================
+WHAT'S DONE vs WHAT'S NEXT
+================================================================================
+
+DONE:
+  [x] SPORTS_API_KEY set as permanent Windows User environment variable
+  [x] Python 3.14.3 confirmed, requests + openpyxl installed
+  [x] Correct SGO API parameters identified (startsAfter/startsBefore, oddID list)
+  [x] Rate limiting solved (embed all oddIDs in /events call, no per-game calls)
+  [x] UTC offset issue understood and handled
+  [x] SGO → SDIO team name translation working (32/32 exact matches on Feb 19)
+  [x] ncaab_lines_logger.py: daily logger to Excel, re-run safe, 32/32 match rate
+  [x] ncaab_slate.py: terminal view of upcoming slate with lines
+  [x] ncaab_historical_lines.py: date-range backfill to CSV (needs name translation
+      to join to Results.xlsx — see NOTE above)
+  [x] NCAA Lines.xlsx headers set and first data (Feb 19) written and verified
+
+IN PROGRESS / NEXT:
+  [ ] Decide earliest date in the 1422-game dataset and run historical backfill
+      over the full range. Then add name translation to that CSV output.
+  [ ] Integrate lines as features into the prediction model:
+        - Spread: encodes market consensus on margin (sharp signal)
+        - Total: encodes projected scoring environment / pace
+        - 2H Total: most relevant feature for the halftime model
+        - ML: converts to implied probability for winner prediction
+  [ ] Consider opening lines once SGO provides them (they do for future games via
+      includeOpenCloseOdds=true; for past games it only returns closing lines)
+
+
+================================================================================
+KNOWN ISSUES / GOTCHAS
+================================================================================
+
+1. No opening lines for historical games
+   includeOpenCloseOdds=true has no effect on finalized events — the API only
+   returns closing lines. open* fields are absent from the response entirely.
+   Closing lines are the stronger predictive feature anyway (incorporate sharp money).
+
+2. UTC date offset
+   Do NOT filter SGO by the SDIO date directly. Always query SGO with the UTC date
+   (which may be +1 day for late US games). The logger handles this by matching on
+   team names, not dates.
+
+3. API key rotation needed
+   Key bb3bf0c3406971f82793a888c9cec1c9 was visible in terminal output during
+   earlier debugging sessions. Rotate it at sportsgameodds.com.
+
+4. ncaab_historical_lines.py uses SGO team names in output
+   Unlike the logger, the backfill CSV has raw SGO names. To join to Results.xlsx
+   you need to run normalize_sgo() on those names first. The function lives in
+   ncaab_lines_logger.py — copy it or extract to a shared util file.
+
+5. Feb 18 results rows were manually cherry-picked
+   If you ever run the logger for 2026-02-18, only 6 games in Results.xlsx match
+   that date (user hand-picked them). It will not match the full SGO slate.
+   Feb 19 onward is reliable as a full slate.
+
+
+================================================================================
+END OF HANDOFF
+================================================================================

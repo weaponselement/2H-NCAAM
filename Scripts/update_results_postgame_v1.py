@@ -26,6 +26,13 @@ def find_game(scoreboard: dict, game_id: str):
     return None
 
 
+def is_final_game(game: dict) -> bool:
+    game_state = str(game.get("gameState") or "").strip().lower()
+    current_period = str(game.get("currentPeriod") or "").strip().lower()
+    final_message = str(game.get("finalMessage") or "").strip().lower()
+    return game_state == "final" or current_period == "final" or final_message == "final"
+
+
 def parse_range(text):
     if not text or "-" not in str(text):
         return None, None
@@ -68,6 +75,10 @@ def main():
 
     if game is None:
         print(f"Game {args.game_id} not found on scoreboard for {date_str}")
+        return
+
+    if not is_final_game(game):
+        print(f"Game {args.game_id} is not final yet (state={game.get('gameState')}, period={game.get('currentPeriod')})")
         return
 
     away_final = int(game["away"]["score"])

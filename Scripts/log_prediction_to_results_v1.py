@@ -56,6 +56,27 @@ def first_empty_row(ws):
     return row
 
 
+def build_header_index(ws):
+    headers = []
+    idx = {}
+    for cell in ws[1]:
+        value = '' if cell.value is None else str(cell.value)
+        headers.append(value)
+        if value:
+            idx[value] = cell.column
+    return headers, idx
+
+
+def ensure_header(ws, headers, idx, header_name):
+    if header_name in idx:
+        return idx[header_name]
+    column = len(headers) + 1
+    ws.cell(row=1, column=column, value=header_name)
+    headers.append(header_name)
+    idx[header_name] = column
+    return column
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("game_id")
@@ -92,6 +113,30 @@ def main():
     
     wb = load_workbook(RESULTS_XLSX)
     ws = wb["Game_Log"]
+    headers, idx = build_header_index(ws)
+
+    base_columns = [
+        'Date',
+        'GameID',
+        'Away',
+        'Home',
+        'HalftimeScore',
+        'PaceProfile',
+        'PredWinner',
+        'PredMarginRange',
+        'Pred2HRange',
+        'PredTotalRange',
+        'Confidence',
+        'TriggerDecision',
+        'TriggerName',
+        'TriggerHistHit',
+        'TriggerHistN',
+        'WageredFlag',
+        'TriggerVersion',
+        'StakeTier',
+    ]
+    for header_name in base_columns:
+        ensure_header(ws, headers, idx, header_name)
 
     existing_row = find_row_by_game_id(ws, args.game_id)
     if existing_row is not None:
@@ -105,17 +150,24 @@ def main():
     else:
         row = first_empty_row(ws)
 
-    ws[f"A{row}"] = report.get("run_date", "")
-    ws[f"B{row}"] = args.game_id
-    ws[f"C{row}"] = away
-    ws[f"D{row}"] = home
-    ws[f"E{row}"] = halftime_score
-    ws[f"F{row}"] = game_state.get("pace_profile", "")
-    ws[f"G{row}"] = projection.get("winner_projection", "")
-    ws[f"H{row}"] = pred_margin
-    ws[f"I{row}"] = pred_2h
-    ws[f"J{row}"] = pred_total
-    ws[f"K{row}"] = projection.get("confidence", "")
+    ws.cell(row=row, column=idx['Date'], value=report.get("run_date", ""))
+    ws.cell(row=row, column=idx['GameID'], value=args.game_id)
+    ws.cell(row=row, column=idx['Away'], value=away)
+    ws.cell(row=row, column=idx['Home'], value=home)
+    ws.cell(row=row, column=idx['HalftimeScore'], value=halftime_score)
+    ws.cell(row=row, column=idx['PaceProfile'], value=game_state.get("pace_profile", ""))
+    ws.cell(row=row, column=idx['PredWinner'], value=projection.get("winner_projection", ""))
+    ws.cell(row=row, column=idx['PredMarginRange'], value=pred_margin)
+    ws.cell(row=row, column=idx['Pred2HRange'], value=pred_2h)
+    ws.cell(row=row, column=idx['PredTotalRange'], value=pred_total)
+    ws.cell(row=row, column=idx['Confidence'], value=projection.get("confidence", ""))
+    ws.cell(row=row, column=idx['TriggerDecision'], value='')
+    ws.cell(row=row, column=idx['TriggerName'], value='')
+    ws.cell(row=row, column=idx['TriggerHistHit'], value='')
+    ws.cell(row=row, column=idx['TriggerHistN'], value='')
+    ws.cell(row=row, column=idx['WageredFlag'], value='N')
+    ws.cell(row=row, column=idx['TriggerVersion'], value='')
+    ws.cell(row=row, column=idx['StakeTier'], value='PASS')
 
     wb.save(RESULTS_XLSX)
 

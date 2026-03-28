@@ -1,0 +1,121 @@
+## Handoff: NCAA Market-Lines Integration + Backtest Status (for new chat)
+
+### Objective
+Integrate sportsbook lines into NCAA halftime model and test whether market priors improve prediction performance.
+
+### Current Blocking Issue
+SGO API key hit monthly object cap on Amateur plan.
+
+- Plan limit: `2500 objects/month`
+- Current usage from `/v2/account/usage`: `current-entities: 2523`
+- Result: event fetches fail/time out/429 until monthly reset or key/plan change.
+
+### Verified API Usage Response (important)
+From executed `GET /v2/account/usage`:
+- `tier: amateur`
+- `per-minute.max-requests: 10`, `current-requests: 0`
+- `per-hour.current-entities: 76`
+- `per-day.current-entities: 280`
+- `per-month.max-entities: 2500`, `current-entities: 2523`  ← hard blocker
+
+---
+
+## Work Completed
+
+### 1) Market-line pipeline implemented (already in repo)
+Files created/updated previously:
+- stage_market_lines_sgo_v1.py
+- merge_staged_lines_to_canonical_v1.py
+- fetch_sgo_lines_v1.py
+- model_feature_utils.py (market features integrated)
+- tune_totals_spreads_v1.py (loads market cache)
+- update_all_predictions_ml.py (loads market cache)
+- step4b_feature_report_from_file_v5_test.py (loads market cache)
+- docs: MARKET_LINES_SCHEMA.md, MARKET_LINES_INTEGRATION.md
+
+### 2) Fetch script fixes applied during this chat
+fetch_sgo_lines_v1.py was patched with:
+- `finalized` param changed from `True` to `"true"`
+- `includeOpenCloseOdds` param changed from `True` to `"true"`
+- UTC date format changed from `+00:00` to `Z` (`YYYY-MM-DDTHH:MM:SSZ`)
+- response event extraction changed to support SGO v2 shape:
+  - `events = data.get("data") or data.get("events") or []`
+- pagination cursor fallback:
+  - `cursor = data.get("nextCursor") or data.get("cursor")`
+- extra debug print for empty first-page responses
+
+### 3) Synthetic-data experiment completed
+Using synthetic SGO-like lines for 2026-02-18:
+- 59 games generated
+- stage match: 50 exact, 9 unmatched
+- merged to canonical successfully
+- model retrained and workbook rescored
+
+Observed metrics (synthetic):
+- Margin Hit Rate: `45.8%` (baseline `64.1%`)
+- Margin MAE: `4.85` (baseline `3.68`)
+- Total MAE: `3.80` (baseline `3.68`)
+Interpretation: synthetic/random-like line priors hurt performance; not meaningful for real signal validation.
+
+---
+
+## Current Repo State / Key Facts
+
+- `canonical_lines.csv` exists and currently contains staged synthetic-derived rows (plus any earlier entries).
+- Real SGO backtest could not be completed due to monthly object cap exceeded.
+- API key appears active but capped (`isActive: true`, over monthly entities).
+
+---
+
+## What next chat should do (exact plan)
+
+### Path A (preferred): real SGO once quota reset or upgraded
+1. Confirm quota reset or new key/plan:
+   - call `/v2/account/usage` and verify `per-month.current-entities < max-entities`.
+2. Run fetch for target date(s), starting with one date only.
+3. Stage + merge exact matches.
+4. Retrain + evaluate.
+5. Compare deltas vs baseline.
+
+### Path B (no-cost fallback): pseudo-market experiment from internal data
+Goal: test whether market-like priors can help architecture without external API.
+1. Build pseudo priors per game from rolling team history:
+   - pseudo spread, pseudo total, pseudo home implied prob
+2. Emit `canonical_lines.csv`-compatible table keyed by `GameID`
+3. Retrain and compare metrics + feature importances
+4. Decide keep/drop for market-prior channel
+
+---
+
+## Useful Commands (for next chat to run)
+
+### Usage check
+```powershell
+$env:SPORTS_API_KEY = [System.Environment]::GetEnvironmentVariable('SPORTS_API_KEY', 'User')
+& "c:/NCAA Model/.venv/Scripts/python.exe" -c "
+import requests, os, json
+r=requests.get('https://api.sportsgameodds.com/v2/account/usage', params={'apiKey':os.environ['SPORTS_API_KEY']}, timeout=15)
+print(r.status_code); print(r.text)
+"
+```
+
+### Real fetch (after quota available)
+```powershell
+& "c:/NCAA Model/.venv/Scripts/python.exe" "c:/NCAA Model/Scripts/fetch_sgo_lines_v1.py" --date 2026-02-18
+```
+
+### Stage + merge + train + rescore
+```powershell
+& "c:/NCAA Model/.venv/Scripts/python.exe" "c:/NCAA Model/Scripts/stage_market_lines_sgo_v1.py" --input "c:/NCAA Model/data/processed/market_lines/sgo_events_2026-02-18.json" --date "2026-02-18" --label "sgo_real_2026_02_18"
+& "c:/NCAA Model/.venv/Scripts/python.exe" "c:/NCAA Model/Scripts/merge_staged_lines_to_canonical_v1.py" --input "c:/NCAA Model/data/processed/market_lines/sgo_stage_sgo_real_2026_02_18.json"
+& "c:/NCAA Model/.venv/Scripts/python.exe" "c:/NCAA Model/Scripts/tune_totals_spreads_v1.py"
+& "c:/NCAA Model/.venv/Scripts/python.exe" "c:/NCAA Model/Scripts/update_all_predictions_ml.py"
+```
+
+---
+
+## Notes for next assistant
+- Do not run repeated probe calls against SGO while capped; it wastes attempts/time.
+- Start from quota verification first.
+- If still capped, pivot immediately to pseudo-market internal experiment (no API calls).
+- Keep reporting only executed outputs and exit codes.

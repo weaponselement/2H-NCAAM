@@ -92,6 +92,20 @@ FEATURE_NAMES = [
     'market_spread_home_close',
     'market_total_close',
     'market_home_implied_prob',
+    'home_last4_three_rate',
+    'away_last4_three_rate',
+    'home_last4_paint_share',
+    'away_last4_paint_share',
+    'home_last4_ft_rate',
+    'away_last4_ft_rate',
+    'home_last4_turnover_rate',
+    'away_last4_turnover_rate',
+    'home_last4_orb_rate',
+    'away_last4_orb_rate',
+    'home_last4_possessions_per_team_1h',
+    'away_last4_possessions_per_team_1h',
+    'home_last4_pbp_coverage_count',
+    'away_last4_pbp_coverage_count',
 ]
 
 
@@ -124,7 +138,96 @@ DEFAULT_PBP_FEATURES = {
     'market_spread_home_close': 0.0,
     'market_total_close': 150.0,
     'market_home_implied_prob': 0.5,
+    'home_last4_three_rate': 0.33,
+    'away_last4_three_rate': 0.33,
+    'home_last4_paint_share': 0.40,
+    'away_last4_paint_share': 0.40,
+    'home_last4_ft_rate': 0.25,
+    'away_last4_ft_rate': 0.25,
+    'home_last4_turnover_rate': 0.18,
+    'away_last4_turnover_rate': 0.18,
+    'home_last4_orb_rate': 0.28,
+    'away_last4_orb_rate': 0.28,
+    'home_last4_possessions_per_team_1h': 39.3,
+    'away_last4_possessions_per_team_1h': 39.3,
+    'home_last4_pbp_coverage_count': 0.0,
+    'away_last4_pbp_coverage_count': 0.0,
 }
+
+
+def load_last4_pbp_priors(date_str, data_root=None):
+    """Build per-team last4 historical PBP priors for a given run date.
+
+    Reads data/processed/baselines/last4_<date>.json and aggregates available
+    PBP features from data/raw/pbp_live/<gameID>/pbp_first_half_*.json.
+    Returns {team_seo: prior_feature_dict}.
+    """
+    if not date_str:
+        return {}
+    if data_root is None:
+        data_root = Path(__file__).resolve().parent.parent / 'data'
+    else:
+        data_root = Path(data_root)
+
+    baseline_path = data_root / 'processed' / 'baselines' / f'last4_{date_str}.json'
+    if not baseline_path.exists():
+        return {}
+
+    try:
+        with open(baseline_path, 'r', encoding='utf-8') as f:
+            baseline = json.load(f)
+    except Exception:
+        return {}
+
+    teams = baseline.get('teams', {}) if isinstance(baseline, dict) else {}
+    if not isinstance(teams, dict):
+        return {}
+
+    from step4b_feature_report_from_file_v5_test import load_game_pbp_features
+
+    priors = {}
+    for team_seo, games in teams.items():
+        if not isinstance(games, list) or not games:
+            continue
+
+        prior_rows = []
+        for g in games:
+            gid = str((g or {}).get('gameID') or '').strip()
+            if not gid:
+                continue
+            pbp = load_game_pbp_features(str(data_root), gid)
+            if pbp:
+                prior_rows.append(pbp)
+
+        if not prior_rows:
+            priors[team_seo] = {
+                'last4_three_rate': DEFAULT_PBP_FEATURES['home_last4_three_rate'],
+                'last4_paint_share': DEFAULT_PBP_FEATURES['home_last4_paint_share'],
+                'last4_ft_rate': DEFAULT_PBP_FEATURES['home_last4_ft_rate'],
+                'last4_turnover_rate': DEFAULT_PBP_FEATURES['home_last4_turnover_rate'],
+                'last4_orb_rate': DEFAULT_PBP_FEATURES['home_last4_orb_rate'],
+                'last4_possessions_per_team_1h': DEFAULT_PBP_FEATURES['home_last4_possessions_per_team_1h'],
+                'last4_pbp_coverage_count': 0.0,
+            }
+            continue
+
+        def _mean(key, default):
+            vals = [float(r.get(key)) for r in prior_rows if r.get(key) is not None]
+            return statistics.mean(vals) if vals else float(default)
+
+        priors[team_seo] = {
+            'last4_three_rate': _mean('home_three_rate', DEFAULT_PBP_FEATURES['home_last4_three_rate']),
+            'last4_paint_share': _mean('home_paint_share', DEFAULT_PBP_FEATURES['home_last4_paint_share']),
+            'last4_ft_rate': _mean('home_ft_rate', DEFAULT_PBP_FEATURES['home_last4_ft_rate']),
+            'last4_turnover_rate': _mean('home_turnover_rate', DEFAULT_PBP_FEATURES['home_last4_turnover_rate']),
+            'last4_orb_rate': _mean('home_orb_rate', DEFAULT_PBP_FEATURES['home_last4_orb_rate']),
+            'last4_possessions_per_team_1h': _mean(
+                'possessions_per_team_1h', DEFAULT_PBP_FEATURES['home_last4_possessions_per_team_1h']
+            ),
+            'last4_pbp_coverage_count': float(len(prior_rows)),
+        }
+
+    return priors
 
 
 def load_team_stats(date_str):
@@ -333,6 +436,7 @@ def build_feature_dict(
     away_team_seo=None,
     rest_context=None,
     neutral_court_games=None,
+    last4_pbp_priors=None,
 ):
     halftime_total = float((home_ht or 0) + (away_ht or 0))
     pace_profile_normalized = str(pace_profile or '').strip().lower()
@@ -381,6 +485,33 @@ def build_feature_dict(
     market_spread_home_close = pbp_values['market_spread_home_close']
     market_total_close = pbp_values['market_total_close']
     market_home_implied_prob = pbp_values['market_home_implied_prob']
+
+    # Team historical last4 PBP priors (leakage-safe, date keyed)
+    home_last4 = (last4_pbp_priors or {}).get(str(home_team_seo or '').strip(), {})
+    away_last4 = (last4_pbp_priors or {}).get(str(away_team_seo or '').strip(), {})
+
+    home_last4_three_rate = float(home_last4.get('last4_three_rate', pbp_values['home_last4_three_rate']))
+    away_last4_three_rate = float(away_last4.get('last4_three_rate', pbp_values['away_last4_three_rate']))
+    home_last4_paint_share = float(home_last4.get('last4_paint_share', pbp_values['home_last4_paint_share']))
+    away_last4_paint_share = float(away_last4.get('last4_paint_share', pbp_values['away_last4_paint_share']))
+    home_last4_ft_rate = float(home_last4.get('last4_ft_rate', pbp_values['home_last4_ft_rate']))
+    away_last4_ft_rate = float(away_last4.get('last4_ft_rate', pbp_values['away_last4_ft_rate']))
+    home_last4_turnover_rate = float(home_last4.get('last4_turnover_rate', pbp_values['home_last4_turnover_rate']))
+    away_last4_turnover_rate = float(away_last4.get('last4_turnover_rate', pbp_values['away_last4_turnover_rate']))
+    home_last4_orb_rate = float(home_last4.get('last4_orb_rate', pbp_values['home_last4_orb_rate']))
+    away_last4_orb_rate = float(away_last4.get('last4_orb_rate', pbp_values['away_last4_orb_rate']))
+    home_last4_possessions_per_team_1h = float(
+        home_last4.get('last4_possessions_per_team_1h', pbp_values['home_last4_possessions_per_team_1h'])
+    )
+    away_last4_possessions_per_team_1h = float(
+        away_last4.get('last4_possessions_per_team_1h', pbp_values['away_last4_possessions_per_team_1h'])
+    )
+    home_last4_pbp_coverage_count = float(
+        home_last4.get('last4_pbp_coverage_count', pbp_values['home_last4_pbp_coverage_count'])
+    )
+    away_last4_pbp_coverage_count = float(
+        away_last4.get('last4_pbp_coverage_count', pbp_values['away_last4_pbp_coverage_count'])
+    )
 
     if game_id and market_lines_cache is not None:
         game_id_key = str(game_id).strip()
@@ -476,6 +607,20 @@ def build_feature_dict(
         'market_spread_home_close': market_spread_home_close,
         'market_total_close': market_total_close,
         'market_home_implied_prob': market_home_implied_prob,
+        'home_last4_three_rate': home_last4_three_rate,
+        'away_last4_three_rate': away_last4_three_rate,
+        'home_last4_paint_share': home_last4_paint_share,
+        'away_last4_paint_share': away_last4_paint_share,
+        'home_last4_ft_rate': home_last4_ft_rate,
+        'away_last4_ft_rate': away_last4_ft_rate,
+        'home_last4_turnover_rate': home_last4_turnover_rate,
+        'away_last4_turnover_rate': away_last4_turnover_rate,
+        'home_last4_orb_rate': home_last4_orb_rate,
+        'away_last4_orb_rate': away_last4_orb_rate,
+        'home_last4_possessions_per_team_1h': home_last4_possessions_per_team_1h,
+        'away_last4_possessions_per_team_1h': away_last4_possessions_per_team_1h,
+        'home_last4_pbp_coverage_count': home_last4_pbp_coverage_count,
+        'away_last4_pbp_coverage_count': away_last4_pbp_coverage_count,
     }
 
 

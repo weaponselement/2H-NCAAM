@@ -1,0 +1,204 @@
+so what is the best way to beat the books? Are there edges even out there? Is looking at open lines, then where the sharps put money, and using the adjusted value a way to determine? OR model prediction with say a teams SEASON pbp, utilizing opening lines, interpreting movement due to sharps money placement, then adjusting with data better? I know the line moves for many reasons. Players injuries, coaching changes, playing a low ranked (easywin) team, etc. But the lines also move because of what sharps do with their money. So where do the sharps get their intel to place such high wagers? Can we use their own triggers and the books reaction to them to find an edge? I have been racking my brain trying to find a foot in the door here
+Copilot said:
+Copilot
+You’re asking the right question, and you’ve already ruled out the naive answers. I’m going to give you a clean, reality‑based framework — no hype, no “just build a better model” nonsense.
+
+I’ll answer this in five parts:
+
+Do real edges still exist? (Yes — but not where most people look)
+What sharps actually do (and don’t do)
+Why “following sharp money” is misunderstood
+The viable paths to beating the book today
+A practical “foot‑in‑the‑door” roadmap
+1. Do real edges still exist?
+Yes — but they are small, conditional, and structural.
+
+The era where someone beats NCAAB totals by 8–12% with a “better model” is over. Closing lines are extremely efficient.
+
+What does still exist:
+
+Micro‑edges (1–3%)
+Timing edges
+Market‑reaction edges
+Information asymmetry at short time horizons
+Edges created by book risk management behavior, not bad math
+If you’re chasing 70% accuracy, you’re aiming at the wrong target.
+If you’re chasing +CLV and +EV with 55–58% hit rate, now you’re in the real game.
+
+2. What sharps actually do
+This is the biggest misconception.
+
+Sharps are not sitting around inventing magic models.
+
+Most professional bettors fall into three overlapping groups:
+
+A. Model‑driven originators (small group)
+Build possession/efficiency models
+Often vary by conference, ref crew, coaching style
+Do not bet all games
+Bet early
+Edge is usually <2 points, not massive
+These guys create the initial pressure, not the late moves.
+
+B. Information traders (larger impact)
+They are faster than books at:
+
+Injury significance (not injury existence)
+Who actually replaces minutes
+Conditioning / foul trouble likelihood
+Travel quirks
+Coach behavior changes
+This is not public Twitter info. It’s:
+
+Beat writers
+Rotation patterns
+Historical coaching substitution behavior
+Old scouting + new context
+C. Market‑reaction sharps (most misunderstood)
+These bettors:
+
+Do not “predict games”
+Trade price inefficiencies
+Bet reaction error, not basketball truth
+This group is closest to what you are circling.
+
+3. Why “following sharp money” is misunderstood
+You’re right that:
+
+Lines move because of sharp money.
+
+But here’s the critical truth:
+
+❌ The move itself is not the edge
+✅ The book’s response to the move is the edge
+Problems with “follow the move”:
+
+You don’t know who caused it
+You don’t know why
+You don’t know if it’s finished
+You don’t know if the number overshot
+Books:
+
+Move lines defensively
+Shade into public bias
+Intentionally create “bad numbers” to balance risk
+So blindly tailing movement is late and noisy.
+
+4. The viable ways to beat the book (today)
+There are three real paths that still work if done correctly.
+
+PATH 1: Price vs Projection Disagreement (not prediction vs outcome)
+This is subtle but important.
+
+Instead of asking:
+
+“Will this be Over or Under?”
+
+You ask:
+
+“Is the distribution implied by the line wrong?”
+
+This means:
+
+You generate a median + variance estimate
+Compare it to closing market distribution
+Bet when tails are mispriced, not center
+You don’t need to be “right”, you need to be right more often than the odds imply.
+
+This is how books think.
+
+PATH 2: Timing exploitation (open vs mature line)
+This is where you’re converging.
+
+There are repeatable patterns:
+
+Early open totals overweight season averages
+Late totals overweight recent narratives
+Books overreact to:
+Recent overs
+Star injury announcements
+Tempo reputation
+A very real edge exists in:
+
+Where the book lands vs where it started
+…not just where it ends.
+
+This is where closing‑line value (CLV) matters more than wins.
+
+If you consistently beat close by 1.5–2.5 points, you are doing something right — even if short‑term results fluctuate.
+
+PATH 3: Book behavior modeling (this is the hardest, cleanest edge)
+This is where very few people go.
+
+You don’t model games.
+You model how books move numbers.
+
+Examples:
+
+How far does Book X move from open before stopping?
+Which books lead vs follow?
+When does a move stall → reverse?
+When does steam hit and not persist?
+Some books:
+
+Move aggressively early (originators)
+Others shade late (public handlers)
+Understanding who moved and who followed matters more than the move.
+
+5. So where do sharps get their “triggers”?
+Not secrets. Structure.
+
+Common triggers:
+
+Mis‑estimated possession count due to matchup control
+Foul rate × ref crew mismatch
+Bench depth mismatch + whistle expectation
+Coaching behavior underdog vs favorite
+Rotation compression post‑injury
+They don’t need certainty — they need mispricing.
+
+6. The mistake most smart people make (important)
+You’re clearly analytical, so here’s the trap:
+
+Trying to build a system that predicts outcomes
+
+Instead of:
+
+Building a system that detects human + book bias
+
+Books are not trying to be “right”.
+They are trying to:
+
+Manage exposure
+Encourage two‑way action
+Avoid getting hit repeatedly by the same profiles
+That means:
+
+Lines are sometimes intentionally wrong
+Especially once liability is acceptable
+7. A realistic “foot in the door” plan (concrete)
+If I were starting today, knowing what you know:
+
+Step 1 — Stop chasing accuracy
+Track:
+
+Open
+Your number
+Close
+Result
+CLV > record.
+
+Step 2 — Pick a narrow sandbox
+Example:
+
+NCAAB totals
+Conference play
+Close <155
+Exclude blowout profiles
+Edges compound with focus.
+
+Step 3 — Separate model from decision layer
+Model gives range
+Decision layer asks:
+Did the market overreact?
+Is the number in a vulnerable region?

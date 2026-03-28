@@ -5,6 +5,23 @@
       "id": "gameId",
       "type": "promptString",
       "description": "NCAA gameID (example: 6534635)"
+    },
+    {
+      "id": "pregameWindow",
+      "type": "promptString",
+      "description": "Pregame window size (default 5)",
+      "default": "5"
+    },
+    {
+      "id": "pregameGameSpec1",
+      "type": "promptString",
+      "description": "Game 1 spec: home,away,line,label,tipoff (example: michigan-st,uconn,136.5,Michigan State vs UConn,7:45 PM CST)"
+    },
+    {
+      "id": "pregameGameSpec2",
+      "type": "promptString",
+      "description": "Game 2 spec (optional, leave blank for one game)",
+      "default": ""
     }
   ],
   "tasks": [
@@ -115,6 +132,29 @@
         "${workspaceFolder}\\Scripts\\vscode_task_runner.ps1",
         "-Action",
         "postgame_missing"
+      ],
+      "problemMatcher": [],
+      "options": { "cwd": "${workspaceFolder}" },
+      "presentation": { "reveal": "always", "panel": "shared", "clear": false }
+    },
+    {
+      "label": "NCAAM: Pregame totals (cached model) [READ-ONLY]",
+      "type": "shell",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\Scripts\\vscode_task_runner.ps1",
+        "-Action",
+        "pregame_cached",
+        "-Window",
+        "${input:pregameWindow}",
+        "-GameSpec",
+        "${input:pregameGameSpec1}",
+        "-GameSpec2",
+        "${input:pregameGameSpec2}"
       ],
       "problemMatcher": [],
       "options": { "cwd": "${workspaceFolder}" },
